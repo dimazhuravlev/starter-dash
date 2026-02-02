@@ -4,6 +4,8 @@ import { useDashboardStore } from './store/useDashboardStore'
 import { type Courier, type Order, type Route, type RouteStepKind } from './model/types'
 import { MINUTE_MS } from './model/rules'
 import { computeOrderRisk } from './model/risk'
+import burgerMenuIcon from './assets/burger-menu.svg'
+import dndMapIcon from './assets/dnd-map.svg'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
   pickup: 'Забирают заказ',
@@ -256,7 +258,7 @@ function App() {
           aria-expanded={isMenuOpen}
           onClick={() => setIsMenuOpen((open) => !open)}
         >
-          <img src="/src/assets/burger-menu.svg" alt="" />
+          <img src={burgerMenuIcon} alt="" />
         </button>
         <div className="app-header__tabs">
           {tabItems.map((label, index) => (
@@ -596,7 +598,7 @@ function DashboardScreen({
           event.preventDefault()
         }}
       >
-        <img className="dashboard__resizer-icon" src="/src/assets/dnd-map.svg" alt="" />
+        <img className="dashboard__resizer-icon" src={dndMapIcon} alt="" />
       </div>
 
       <section
