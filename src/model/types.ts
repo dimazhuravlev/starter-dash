@@ -26,6 +26,7 @@ export type Order = {
   createdAt: number
   statusStartedAt: number
   etaMin: number
+  slaTotalMin: number
   routeId?: string
   courierId?: string
 }
@@ -34,6 +35,7 @@ export type Courier = {
   id: string
   name: string
   status: CourierStatus
+  freeSince: number
   routeId?: string
 }
 
@@ -44,4 +46,5 @@ export type Route = {
   createdAt: number
   status: RouteStatus
   step: RouteStep
+  returningStartedAt?: number
 }

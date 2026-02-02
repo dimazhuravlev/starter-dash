@@ -1,30 +1,70 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { type Courier, type Order, type Route } from '../model/types'
-import { step, type DashboardState } from './simulation'
+import { createSeedOrders, step, type DashboardState } from './simulation'
+import {
+  MINUTE_MS,
+  ORDER_CREATE_INTERVAL_MIN,
+  ORDER_SLA_OPTIONS_MIN,
+  ORDER_STAGE_MIN,
+  ROUTE_STAGE_MIN,
+} from '../model/rules'
 
 type DashboardActions = {
   tick: (deltaMs: number) => void
   toggleRun: () => void
-  setSpeed: (speed: 1 | 5 | 20) => void
+  setSpeed: (speed: 1 | 3 | 5 | 20) => void
   createRouteDraft: () => string
+  deleteRouteDraft: (routeId: string) => void
+  detachCourierFromRoute: (routeId: string) => void
   attachCourierToRoute: (routeId: string, courierId: string) => void
+  detachOrderFromRoute: (routeId: string, orderId: string) => void
   attachOrderToRoute: (routeId: string, orderId: string) => void
   sendRoute: (routeId: string) => void
   resetSeed: () => void
+  setOrderStageMin: (stage: keyof typeof ORDER_STAGE_MIN, value: number) => void
+  setOrderSlaOption: (index: number, value: number) => void
+  setRouteStageMin: (stage: keyof typeof ROUTE_STAGE_MIN, value: number) => void
+  setOrderCreateIntervalMin: (value: number) => void
 }
 
 const courierNames = [
-  'Алексей Смирнов',
-  'Мария Иванова',
-  'Дмитрий Кузнецов',
-  'Анна Соколова',
-  'Никита Орлов',
-  'Екатерина Петрова',
+  'Скороходов Павел',
+  'Шалимов Пётр',
+  'Егоров Александр',
+  'Польский Илья',
+  'Пак Константин',
+  'Гринько Екатерина',
 ]
 
-const buildSeedState = (): DashboardState => {
+type DashboardSettings = Pick<
+  DashboardState,
+  'speed' | 'orderCreateIntervalMin' | 'orderStageMin' | 'orderSlaOptionsMin' | 'routeStageMin'
+>
+
+const resolveSettings = (settings?: Partial<DashboardSettings>): DashboardSettings => ({
+  speed: settings?.speed ?? 3,
+  orderCreateIntervalMin: settings?.orderCreateIntervalMin ?? ORDER_CREATE_INTERVAL_MIN,
+  orderStageMin: {
+    ...ORDER_STAGE_MIN,
+    ...(settings?.orderStageMin ?? {}),
+  },
+  orderSlaOptionsMin:
+    settings?.orderSlaOptionsMin !== undefined
+      ? [...settings.orderSlaOptionsMin]
+      : [...ORDER_SLA_OPTIONS_MIN],
+  routeStageMin: {
+    ...ROUTE_STAGE_MIN,
+    ...(settings?.routeStageMin ?? {}),
+  },
+})
+
+const getRandomFreeSince = (now: number) => now - Math.random() * 9 * MINUTE_MS
+
+const buildSeedState = (settings?: Partial<DashboardSettings>): DashboardState => {
   const now = Date.now()
   const couriers: Record<string, Courier> = {}
+  const resolvedSettings = resolveSettings(settings)
 
   courierNames.forEach((name, index) => {
     const courierId = `courier_${index + 1}`
@@ -32,179 +72,270 @@ const buildSeedState = (): DashboardState => {
       id: courierId,
       name,
       status: 'free',
+      freeSince: getRandomFreeSince(now),
     }
   })
 
-  const orders: Record<string, Order> = {}
+  const { orders, nextOrderId } = createSeedOrders({
+    now,
+    nextOrderId: 1,
+    orderStageMin: resolvedSettings.orderStageMin,
+    orderSlaOptionsMin: resolvedSettings.orderSlaOptionsMin,
+    routeStageMin: resolvedSettings.routeStageMin,
+  })
   const routes: Record<string, Route> = {}
 
   return {
     now,
-    isRunning: false,
-    speed: 1,
+    isRunning: true,
+    speed: resolvedSettings.speed,
     orders,
     couriers,
     routes,
     lastOrderCreatedAt: now,
-    nextOrderId: 1,
+    nextOrderId,
     nextRouteId: 1,
+    orderCreateIntervalMin: resolvedSettings.orderCreateIntervalMin,
+    orderStageMin: resolvedSettings.orderStageMin,
+    orderSlaOptionsMin: resolvedSettings.orderSlaOptionsMin,
+    routeStageMin: resolvedSettings.routeStageMin,
   }
 }
 
-export const useDashboardStore = create<DashboardState & DashboardActions>((set, get) => ({
-  ...buildSeedState(),
-  tick: (deltaMs) => {
-    set((state) => step(state, deltaMs))
-  },
-  toggleRun: () => {
-    set((state) => ({ ...state, isRunning: !state.isRunning }))
-  },
-  setSpeed: (speed) => {
-    set((state) => ({ ...state, speed }))
-  },
-  createRouteDraft: () => {
-    const { nextRouteId, routes, now } = get()
-    const routeId = `route_${nextRouteId}`
-    const newRoute: Route = {
-      id: routeId,
-      courierId: '',
-      orderIds: [],
-      createdAt: now,
-      status: 'draft',
-      step: {
-        kind: 'pickup',
-        orderIndex: 0,
+export const useDashboardStore = create<DashboardState & DashboardActions>()(
+  persist(
+    (set, get) => ({
+      ...buildSeedState(),
+      tick: (deltaMs) => {
+        set((state) => step(state, deltaMs))
       },
-    }
-    set((state) => ({
-      ...state,
-      routes: {
-        ...state.routes,
-        [routeId]: newRoute,
+      toggleRun: () => {
+        set((state) => ({ ...state, isRunning: !state.isRunning }))
       },
-      nextRouteId: state.nextRouteId + 1,
-    }))
-    return routeId
-  },
-  attachCourierToRoute: (routeId, courierId) => {
-    set((state) => {
-      const route = state.routes[routeId]
-      const courier = state.couriers[courierId]
-      if (!route || !courier) {
-        return state
-      }
-      return {
-        ...state,
-        routes: {
-          ...state.routes,
-          [routeId]: {
-            ...route,
-            courierId,
+      setSpeed: (speed) => {
+        set((state) => ({ ...state, speed }))
+      },
+      createRouteDraft: () => {
+        const { nextRouteId, now } = get()
+        const routeId = `route_${nextRouteId}`
+        const newRoute: Route = {
+          id: routeId,
+          courierId: '',
+          orderIds: [],
+          createdAt: now,
+          status: 'draft',
+          step: {
+            kind: 'pickup',
+            orderIndex: 0,
           },
-        },
-        couriers: {
-          ...state.couriers,
-          [courierId]: {
-            ...courier,
-            status: 'assigned',
-            routeId,
-          },
-        },
-      }
-    })
-  },
-  attachOrderToRoute: (routeId, orderId) => {
-    set((state) => {
-      const route = state.routes[routeId]
-      const order = state.orders[orderId]
-      if (!route || !order || route.status !== 'draft') {
-        return state
-      }
-      if (route.orderIds.includes(orderId) || route.orderIds.length >= 3) {
-        return state
-      }
-      return {
-        ...state,
-        routes: {
-          ...state.routes,
-          [routeId]: {
-            ...route,
-            orderIds: [...route.orderIds, orderId],
-          },
-        },
-        orders: {
-          ...state.orders,
-          [orderId]: {
-            ...order,
-            routeId,
-          },
-        },
-      }
-    })
-  },
-  sendRoute: (routeId) => {
-    set((state) => {
-      const route = state.routes[routeId]
-      if (!route || route.status !== 'draft') {
-        return state
-      }
-      if (!route.courierId || route.orderIds.length === 0 || route.orderIds.length > 3) {
-        return state
-      }
-      const courier = state.couriers[route.courierId]
-      const firstOrderId = route.orderIds[0]
-      const firstOrder = state.orders[firstOrderId]
-      if (!courier || !firstOrder) {
-        return state
-      }
-
-      const updatedOrders: Record<string, Order> = { ...state.orders }
-      route.orderIds.forEach((orderId) => {
-        const order = updatedOrders[orderId]
-        if (order) {
-          updatedOrders[orderId] = {
-            ...order,
-            routeId,
-            courierId: courier.id,
-          }
         }
-      })
-
-      return {
-        ...state,
-        routes: {
-          ...state.routes,
-          [routeId]: {
-            ...route,
-            status: 'sent',
-            step: {
-              kind: 'pickup',
-              orderIndex: 0,
+        set((state) => ({
+          ...state,
+          routes: {
+            ...state.routes,
+            [routeId]: newRoute,
+          },
+          nextRouteId: state.nextRouteId + 1,
+        }))
+        return routeId
+      },
+      deleteRouteDraft: (routeId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || route.status !== 'draft') {
+            return state
+          }
+          const { [routeId]: removedRoute, ...restRoutes } = state.routes
+          void removedRoute
+          return {
+            ...state,
+            routes: restRoutes,
+          }
+        })
+      },
+      detachCourierFromRoute: (routeId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || route.status !== 'draft') {
+            return state
+          }
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: {
+                ...route,
+                courierId: '',
+              },
             },
+          }
+        })
+      },
+      attachCourierToRoute: (routeId, courierId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route) {
+            return state
+          }
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: {
+                ...route,
+                courierId,
+              },
+            },
+          }
+        })
+      },
+      detachOrderFromRoute: (routeId, orderId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || route.status !== 'draft') {
+            return state
+          }
+          if (!route.orderIds.includes(orderId)) {
+            return state
+          }
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: {
+                ...route,
+                orderIds: route.orderIds.filter((id) => id !== orderId),
+              },
+            },
+          }
+        })
+      },
+      attachOrderToRoute: (routeId, orderId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          const order = state.orders[orderId]
+          if (!route || !order || route.status !== 'draft') {
+            return state
+          }
+          if (route.orderIds.includes(orderId) || route.orderIds.length >= 3) {
+            return state
+          }
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: {
+                ...route,
+                orderIds: [...route.orderIds, orderId],
+              },
+            },
+          }
+        })
+      },
+      sendRoute: (routeId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || route.status !== 'draft') {
+            return state
+          }
+          if (!route.courierId || route.orderIds.length === 0 || route.orderIds.length > 3) {
+            return state
+          }
+          const courier = state.couriers[route.courierId]
+          const firstOrderId = route.orderIds[0]
+          const firstOrder = state.orders[firstOrderId]
+          if (!courier || !firstOrder) {
+            return state
+          }
+
+          const updatedOrders: Record<string, Order> = { ...state.orders }
+          route.orderIds.forEach((orderId) => {
+            const order = updatedOrders[orderId]
+            if (!order) return
+            updatedOrders[orderId] = {
+              ...order,
+              status: 'pickup',
+              statusStartedAt: state.now,
+              routeId,
+              courierId: courier.id,
+            }
+          })
+
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: {
+                ...route,
+                status: 'sent',
+                step: {
+                  kind: 'pickup',
+                  orderIndex: 0,
+                },
+              },
+            },
+            couriers: {
+              ...state.couriers,
+              [courier.id]: {
+                ...courier,
+                status: 'assigned',
+                routeId,
+              },
+            },
+            orders: updatedOrders,
+          }
+        })
+      },
+      resetSeed: () => {
+        set(() => buildSeedState())
+      },
+      setOrderStageMin: (stage, value) => {
+        set((state) => ({
+          ...state,
+          orderStageMin: {
+            ...state.orderStageMin,
+            [stage]: value,
           },
-        },
-        couriers: {
-          ...state.couriers,
-          [courier.id]: {
-            ...courier,
-            status: 'assigned',
-            routeId,
+        }))
+      },
+      setOrderSlaOption: (index, value) => {
+        set((state) => {
+          const nextOptions = [...state.orderSlaOptionsMin]
+          if (index < 0 || index >= nextOptions.length) {
+            return state
+          }
+          nextOptions[index] = value
+          return {
+            ...state,
+            orderSlaOptionsMin: nextOptions,
+          }
+        })
+      },
+      setRouteStageMin: (stage, value) => {
+        set((state) => ({
+          ...state,
+          routeStageMin: {
+            ...state.routeStageMin,
+            [stage]: value,
           },
-        },
-        orders: {
-          ...updatedOrders,
-          [firstOrderId]: {
-            ...firstOrder,
-            status: 'pickup',
-            statusStartedAt: state.now,
-            routeId,
-            courierId: courier.id,
-          },
-        },
-      }
-    })
-  },
-  resetSeed: () => {
-    set(() => buildSeedState())
-  },
-}))
+        }))
+      },
+      setOrderCreateIntervalMin: (value) => {
+        set((state) => ({
+          ...state,
+          orderCreateIntervalMin: value,
+        }))
+      },
+    }),
+    {
+      name: 'dashboard-settings',
+      partialize: (state) => ({
+        speed: state.speed,
+        orderCreateIntervalMin: state.orderCreateIntervalMin,
+        orderStageMin: state.orderStageMin,
+        orderSlaOptionsMin: state.orderSlaOptionsMin,
+        routeStageMin: state.routeStageMin,
+      }),
+    },
+  ),
+)

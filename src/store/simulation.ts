@@ -5,48 +5,63 @@ import {
   type Route,
   type RouteStepKind,
 } from '../model/types'
-import {
-  MINUTE_MS,
-  ORDER_CREATE_INTERVAL_MIN,
-  ORDER_STAGE_MIN,
-  ROUTE_STAGE_MIN,
-} from '../model/rules'
+import { MINUTE_MS } from '../model/rules'
 
 export type DashboardState = {
   now: number
   isRunning: boolean
-  speed: 1 | 5 | 20
+  speed: 1 | 3 | 5 | 20
   orders: Record<string, Order>
   couriers: Record<string, Courier>
   routes: Record<string, Route>
   lastOrderCreatedAt: number
   nextOrderId: number
   nextRouteId: number
+  orderCreateIntervalMin: number
+  orderStageMin: {
+    waiting_cook: number
+    cooking: number
+    ready: number
+  }
+  orderSlaOptionsMin: number[]
+  routeStageMin: {
+    pickup: number
+    enroute: number
+    handoff: number
+    returning: number
+  }
 }
 
-const ORDER_STAGE_MS: Record<'waiting_cook' | 'cooking' | 'ready', number> = {
-  waiting_cook: ORDER_STAGE_MIN.waiting_cook * MINUTE_MS,
-  cooking: ORDER_STAGE_MIN.cooking * MINUTE_MS,
-  ready: ORDER_STAGE_MIN.ready * MINUTE_MS,
-}
+type OrderStageMin = DashboardState['orderStageMin']
+type RouteStageMin = DashboardState['routeStageMin']
 
-const ROUTE_STAGE_MS: Record<RouteStepKind, number> = {
-  pickup: ROUTE_STAGE_MIN.pickup * MINUTE_MS,
-  enroute: ROUTE_STAGE_MIN.enroute * MINUTE_MS,
-  handoff: ROUTE_STAGE_MIN.handoff * MINUTE_MS,
-  returning: ROUTE_STAGE_MIN.returning * MINUTE_MS,
-}
+const getOrderStageMs = (orderStageMin: OrderStageMin) => ({
+  waiting_cook: orderStageMin.waiting_cook * MINUTE_MS,
+  cooking: orderStageMin.cooking * MINUTE_MS,
+  ready: orderStageMin.ready * MINUTE_MS,
+})
+
+const getRouteStageMs = (routeStageMin: RouteStageMin): Record<RouteStepKind, number> => ({
+  pickup: routeStageMin.pickup * MINUTE_MS,
+  enroute: routeStageMin.enroute * MINUTE_MS,
+  handoff: routeStageMin.handoff * MINUTE_MS,
+  returning: routeStageMin.returning * MINUTE_MS,
+})
 
 const ADDRESS_SEEDS = [
   'ул. Ленина, 10',
   'пр-т Мира, 32',
   'ул. Пушкина, 18',
-  'ул. Гагарина, 7',
+  'ул. Гагарина, 7 к2',
   'ул. Садовая, 41',
   'ул. Молодежная, 5',
   'ул. Советская, 22',
   'ул. Победы, 14',
   'ул. Центральная, 9',
+  'пер. Красногвардейский, 23А',
+  'ул. Введенская, 12',
+  'пер. Узкий, 3Б',
+  'ш. Пошехонское, 15',
 ]
 
 const COOKING_PIPELINE: OrderStatus[] = [
@@ -68,21 +83,98 @@ const isCookingStatus = (status: OrderStatus): status is 'waiting_cook' | 'cooki
 const isRouteStatus = (status: OrderStatus): status is RouteStepKind =>
   ROUTE_PIPELINE.includes(status)
 
-const createOrder = (id: string, createdAt: number, index: number): Order => ({
-  id,
-  address: ADDRESS_SEEDS[index % ADDRESS_SEEDS.length],
-  status: 'waiting_cook',
-  createdAt,
-  statusStartedAt: createdAt,
-  etaMin: Math.ceil(ORDER_STAGE_MS.waiting_cook / MINUTE_MS),
-})
+const createOrder = (
+  id: string,
+  createdAt: number,
+  index: number,
+  orderStageMin: OrderStageMin,
+  orderSlaOptionsMin: number[],
+): Order => {
+  const seed = ADDRESS_SEEDS[index % ADDRESS_SEEDS.length]
+  const duplicateIndex = Math.floor(index / ADDRESS_SEEDS.length)
+  const suffix = duplicateIndex > 0 ? `, кв. ${duplicateIndex + 1}` : ''
+  return {
+    id,
+    address: `${seed}${suffix}`,
+    status: 'waiting_cook',
+    createdAt,
+    statusStartedAt: createdAt,
+    etaMin: Math.ceil(orderStageMin.waiting_cook),
+    slaTotalMin:
+      orderSlaOptionsMin.length > 0
+        ? orderSlaOptionsMin[Math.floor(Math.random() * orderSlaOptionsMin.length)]
+        : 40,
+  }
+}
 
-const computeEtaMin = (order: Order, now: number): number => {
+const shuffle = <T,>(items: T[]): T[] => [...items].sort(() => Math.random() - 0.5)
+
+export const createSeedOrders = ({
+  now,
+  nextOrderId,
+  orderStageMin,
+  orderSlaOptionsMin,
+  routeStageMin,
+}: {
+  now: number
+  nextOrderId: number
+  orderStageMin: OrderStageMin
+  orderSlaOptionsMin: number[]
+  routeStageMin: RouteStageMin
+}): { orders: Record<string, Order>; nextOrderId: number } => {
+  const orderStageMs = getOrderStageMs(orderStageMin)
+  const routeStageMs = getRouteStageMs(routeStageMin)
+  const statuses = shuffle<OrderStatus>(['cooking', 'cooking', 'waiting_cook'])
+  const orders: Record<string, Order> = {}
+
+  statuses.forEach((status, index) => {
+    const orderId = `order_${nextOrderId + index}`
+    let createdAt = now
+    let statusStartedAt = now
+
+    if (status === 'waiting_cook') {
+      const elapsedWaiting = Math.random() * orderStageMs.waiting_cook
+      statusStartedAt = now - elapsedWaiting
+      createdAt = statusStartedAt
+    } else {
+      const elapsedCooking = Math.random() * orderStageMs.cooking
+      statusStartedAt = now - elapsedCooking
+      createdAt = statusStartedAt - orderStageMs.waiting_cook
+    }
+
+    const baseOrder = createOrder(
+      orderId,
+      createdAt,
+      nextOrderId + index,
+      orderStageMin,
+      orderSlaOptionsMin,
+    )
+    const seededOrder: Order = {
+      ...baseOrder,
+      status,
+      statusStartedAt,
+    }
+    seededOrder.etaMin = computeEtaMin(seededOrder, now, orderStageMs, routeStageMs)
+    orders[orderId] = seededOrder
+  })
+
+  return {
+    orders,
+    nextOrderId: nextOrderId + statuses.length,
+  }
+}
+
+const computeEtaMin = (
+  order: Order,
+  now: number,
+  orderStageMs: ReturnType<typeof getOrderStageMs>,
+  routeStageMs: Record<RouteStepKind, number>,
+): number => {
   let durationMs = 0
   if (isCookingStatus(order.status)) {
-    durationMs = ORDER_STAGE_MS[order.status]
+    durationMs = orderStageMs[order.status]
   } else if (isRouteStatus(order.status)) {
-    durationMs = ROUTE_STAGE_MS[order.status]
+    durationMs = routeStageMs[order.status]
   } else {
     return 0
   }
@@ -90,7 +182,11 @@ const computeEtaMin = (order: Order, now: number): number => {
   return Math.ceil(remainingMs / MINUTE_MS)
 }
 
-const advanceCookingPipeline = (order: Order, now: number): Order => {
+const advanceCookingPipeline = (
+  order: Order,
+  now: number,
+  orderStageMs: ReturnType<typeof getOrderStageMs>,
+): Order => {
   if (!isCookingStatus(order.status)) {
     return order
   }
@@ -99,15 +195,15 @@ const advanceCookingPipeline = (order: Order, now: number): Order => {
   let statusStartedAt = order.statusStartedAt
   let elapsed = now - statusStartedAt
 
-  if (status === 'waiting_cook' && elapsed >= ORDER_STAGE_MS.waiting_cook) {
+  if (status === 'waiting_cook' && elapsed >= orderStageMs.waiting_cook) {
     status = 'cooking'
-    statusStartedAt += ORDER_STAGE_MS.waiting_cook
+    statusStartedAt += orderStageMs.waiting_cook
     elapsed = now - statusStartedAt
   }
 
-  if (status === 'cooking' && elapsed >= ORDER_STAGE_MS.cooking) {
+  if (status === 'cooking' && elapsed >= orderStageMs.cooking) {
     status = 'ready'
-    statusStartedAt += ORDER_STAGE_MS.cooking
+    statusStartedAt += orderStageMs.cooking
   }
 
   return {
@@ -172,18 +268,26 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
   const routes: Record<string, Route> = { ...state.routes }
   let lastOrderCreatedAt = state.lastOrderCreatedAt
   let nextOrderId = state.nextOrderId
+  const orderStageMs = getOrderStageMs(state.orderStageMin)
+  const routeStageMs = getRouteStageMs(state.routeStageMin)
 
-  const orderIntervalMs = ORDER_CREATE_INTERVAL_MIN * MINUTE_MS
+  const orderIntervalMs = state.orderCreateIntervalMin * MINUTE_MS
   while (now - lastOrderCreatedAt >= orderIntervalMs) {
     lastOrderCreatedAt += orderIntervalMs
     const orderId = `order_${nextOrderId}`
-    orders[orderId] = createOrder(orderId, lastOrderCreatedAt, nextOrderId)
+    orders[orderId] = createOrder(
+      orderId,
+      lastOrderCreatedAt,
+      nextOrderId,
+      state.orderStageMin,
+      state.orderSlaOptionsMin,
+    )
     nextOrderId += 1
   }
 
   Object.values(orders).forEach((order) => {
     if (!order.routeId) {
-      orders[order.id] = advanceCookingPipeline(order, now)
+      orders[order.id] = advanceCookingPipeline(order, now, orderStageMs)
     }
   })
 
@@ -198,13 +302,17 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
       return
     }
 
-    const durationMs = ROUTE_STAGE_MS[route.step.kind]
-    const elapsed = now - currentOrder.statusStartedAt
+    const durationMs = routeStageMs[route.step.kind]
+    const stepStartedAt =
+      route.step.kind === 'returning'
+        ? route.returningStartedAt ?? currentOrder.statusStartedAt
+        : currentOrder.statusStartedAt
+    const elapsed = now - stepStartedAt
     if (elapsed < durationMs) {
       return
     }
 
-    const stepCompletedAt = currentOrder.statusStartedAt + durationMs
+    const stepCompletedAt = stepStartedAt + durationMs
     if (route.step.kind === 'pickup') {
       setOrderStatus(orders, currentOrderId, 'enroute', stepCompletedAt)
       routes[route.id] = {
@@ -234,7 +342,7 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
 
       if (route.step.orderIndex < route.orderIds.length - 1) {
         const nextStep = {
-          kind: 'pickup' as const,
+          kind: 'enroute' as const,
           orderIndex: route.step.orderIndex + 1,
         }
         routes[route.id] = {
@@ -242,7 +350,7 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
           step: nextStep,
         }
         const nextOrderId = route.orderIds[nextStep.orderIndex]
-        setOrderStatus(orders, nextOrderId, 'pickup', stepCompletedAt)
+        setOrderStatus(orders, nextOrderId, 'enroute', stepCompletedAt)
         updateOrder(orders, nextOrderId, {
           routeId: route.id,
           courierId: route.courierId,
@@ -253,15 +361,14 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
       routes[route.id] = {
         ...route,
         step: {
+          ...route.step,
           kind: 'returning',
-          orderIndex: route.step.orderIndex,
         },
+        returningStartedAt: stepCompletedAt,
       }
-
-      route.orderIds.forEach((orderId) => {
-        setOrderStatus(orders, orderId, 'returning', stepCompletedAt)
+      updateCourier(couriers, route.courierId, {
+        status: 'returning',
       })
-      updateCourier(couriers, route.courierId, { status: 'returning' })
       return
     }
 
@@ -273,14 +380,18 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
       route.orderIds.forEach((orderId) => {
         setOrderStatus(orders, orderId, 'delivered', stepCompletedAt)
       })
-      updateCourier(couriers, route.courierId, { status: 'free', routeId: undefined })
+      updateCourier(couriers, route.courierId, {
+        status: 'free',
+        routeId: undefined,
+        freeSince: stepCompletedAt,
+      })
     }
   })
 
   Object.values(orders).forEach((order) => {
     orders[order.id] = {
       ...order,
-      etaMin: computeEtaMin(order, now),
+      etaMin: computeEtaMin(order, now, orderStageMs, routeStageMs),
     }
   })
 

@@ -14,3 +14,5 @@ export const ROUTE_STAGE_MIN = {
   handoff: 2,
   returning: 5,
 } as const
+
+export const ORDER_SLA_OPTIONS_MIN = [30, 40, 50] as const

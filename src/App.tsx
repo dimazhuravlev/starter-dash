@@ -603,7 +603,9 @@ function CardOrder({
     <div
       className={`card card--order${isNewWaitingOrder ? ' card--order-new' : ''}${
         isDraggable ? ' card--draggable' : ''
-      }${isDragging ? ' card--dragging' : ''}${slaStatus.isOverdue ? ' card--overdue' : ''}`}
+      }${isDragging ? ' card--dragging' : ''}${
+        slaStatus.isOverdue || isBehindSchedule ? ' card--overdue' : ''
+      }`}
       draggable={isDraggable}
       onDragStart={(event) => {
         if (!isDraggable) return
@@ -626,9 +628,7 @@ function CardOrder({
       <div className="card__row">
         <div className="card__title">{order.address}</div>
         <div
-          className={`sla-pill${slaStatus.isOverdue ? ' sla-pill--overdue' : ''}${
-            isBehindSchedule ? ' sla-pill--risk' : ''
-          }`}
+          className={`sla-pill${slaStatus.isOverdue || isBehindSchedule ? ' sla-pill--overdue' : ''}`}
         >
           {slaStatus.label}
         </div>
@@ -910,7 +910,7 @@ function RouteDeliveryCard({
               key={orderId}
               className={`delivery__order${index === route.step.orderIndex ? ' delivery__order--active' : ''}${
                 slaStatus.isOverdue ? ' delivery__order--overdue' : ''
-              }`}
+              }${order?.status === 'delivered' ? ' delivery__order--delivered' : ''}`}
             >
               <div className="delivery__order-main">
                 <div className="delivery__order-title">{order?.address ?? orderId}</div>
