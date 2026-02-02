@@ -521,6 +521,10 @@
   cursor: not-allowed;
 }
 
+.route-draft__action--primary:disabled {
+  opacity: 0.3;
+}
+
 .route-draft__remove {
   display: inline-flex;
   align-items: center;
