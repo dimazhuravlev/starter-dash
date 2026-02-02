@@ -405,7 +405,7 @@ function DashboardScreen({
 
       <section className="dashboard__column">
         <div className="column__header">
-          <div className="column__title">Назначения</div>
+          <div className="column__title">Маршруты</div>
           <button type="button" className="route-draft__action" onClick={createRouteDraft}>
             Новый маршрут
           </button>
