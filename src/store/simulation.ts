@@ -49,19 +49,19 @@ const getRouteStageMs = (routeStageMin: RouteStageMin): Record<RouteStepKind, nu
 })
 
 const ADDRESS_SEEDS = [
-  'ул. Ленина, 10',
-  'пр-т Мира, 32',
-  'ул. Пушкина, 18',
-  'ул. Гагарина, 7 к2',
-  'ул. Садовая, 41',
-  'ул. Молодежная, 5',
-  'ул. Советская, 22',
-  'ул. Победы, 14',
-  'ул. Центральная, 9',
-  'пер. Красногвардейский, 23А',
-  'ул. Введенская, 12',
-  'пер. Узкий, 3Б',
-  'ш. Пошехонское, 15',
+  { address: 'Каменноостровский пр., 10', coords: { lat: 59.9588, lng: 30.3081 } },
+  { address: 'Большой пр. П.С., 18', coords: { lat: 59.9599, lng: 30.2911 } },
+  { address: 'Чкаловский пр., 15', coords: { lat: 59.9656, lng: 30.3035 } },
+  { address: 'Кронверкская ул., 29', coords: { lat: 59.9559, lng: 30.3224 } },
+  { address: 'Пионерская ул., 7', coords: { lat: 59.9722, lng: 30.2917 } },
+  { address: 'Ропшинская ул., 3', coords: { lat: 59.9683, lng: 30.3056 } },
+  { address: 'Барочная ул., 6', coords: { lat: 59.9764, lng: 30.3032 } },
+  { address: 'Корпусная ул., 9', coords: { lat: 59.9651, lng: 30.3187 } },
+  { address: 'ул. Ленина, 23', coords: { lat: 59.9595, lng: 30.3266 } },
+  { address: 'ул. Введенская, 12', coords: { lat: 59.9647, lng: 30.2979 } },
+  { address: 'ул. Профессора Попова, 38', coords: { lat: 59.9729, lng: 30.3134 } },
+  { address: 'наб. реки Карповки, 10', coords: { lat: 59.9704, lng: 30.3044 } },
+  { address: 'ул. Льва Толстого, 7', coords: { lat: 59.9669, lng: 30.3122 } },
 ]
 
 const COOKING_PIPELINE: OrderStatus[] = [
@@ -95,7 +95,8 @@ const createOrder = (
   const suffix = duplicateIndex > 0 ? `, кв. ${duplicateIndex + 1}` : ''
   return {
     id,
-    address: `${seed}${suffix}`,
+    address: `${seed.address}${suffix}`,
+    coords: seed.coords,
     status: 'waiting_cook',
     createdAt,
     statusStartedAt: createdAt,

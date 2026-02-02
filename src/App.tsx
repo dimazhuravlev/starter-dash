@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import './App.css'
 import { useDashboardStore } from './store/useDashboardStore'
 import { type Courier, type Order, type Route, type RouteStepKind } from './model/types'
@@ -179,6 +179,31 @@ const getOrderSlaStatus = (order: Order, now: number) => {
   return { label: `+${overdueMin}`, isOverdue: true }
 }
 
+const getOrderRiskStatus = (
+  order: Order,
+  now: number,
+  orderStageMin: OrderStageMin,
+  routeStageMin: RouteStageMin,
+) => {
+  const { speedupFactor, deficitMin } = computeOrderRisk(order, now, {
+    orderStageMin,
+    routeStageMin,
+  })
+  return {
+    isBehindSchedule: speedupFactor > 1.05 || deficitMin > 0,
+  }
+}
+
+const formatOrderAddress = (address: string) => {
+  const cleaned = address
+    .replace(/\s*(ул|пр|пер)\.\s*,?\s*/gi, ' ')
+    .replace(/\s+,/g, ',')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  if (cleaned.includes(',')) return cleaned
+  return cleaned.replace(/(\D)\s+(\d)/, '$1, $2')
+}
+
 function App() {
   const now = useDashboardStore((state) => state.now)
   const isRunning = useDashboardStore((state) => state.isRunning)
@@ -207,6 +232,7 @@ function App() {
   const setRouteStageMin = useDashboardStore((state) => state.setRouteStageMin)
 
   const [screen, setScreen] = useState<'dashboard' | 'debug'>('dashboard')
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!isRunning) {
@@ -222,10 +248,24 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
+      <header className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
+        <button
+          type="button"
+          className="app-header__burger"
+          aria-label="Открыть меню"
+          aria-expanded={isMenuOpen}
+          onClick={() => setIsMenuOpen((open) => !open)}
+        >
+          <img src="/src/assets/burger-menu.svg" alt="" />
+        </button>
         <div className="app-header__tabs">
           {tabItems.map((label, index) => (
-            <button key={label} type="button" className={index === 0 ? 'tab tab--active' : 'tab'}>
+            <button
+              key={label}
+              type="button"
+              className={index === 0 ? 'tab tab--active' : 'tab'}
+              onClick={() => setIsMenuOpen(false)}
+            >
               {label}
             </button>
           ))}
@@ -316,6 +356,13 @@ function DashboardScreen({
   const orderList = useMemo(() => Object.values(orders), [orders])
   const courierList = useMemo(() => Object.values(couriers), [couriers])
   const routeList = useMemo(() => Object.values(routes), [routes])
+  const dashboardRef = useRef<HTMLDivElement | null>(null)
+  const resizerRef = useRef<HTMLDivElement | null>(null)
+  const activePointerIdRef = useRef<number | null>(null)
+  const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const [rightColumnWidth, setRightColumnWidth] = useState<number | null>(null)
+  const [isResizing, setIsResizing] = useState(false)
+  const [isUserResized, setIsUserResized] = useState(false)
 
   const unassignedOrders = orderList.filter((order) => !order.routeId)
   const ordersWaiting = unassignedOrders.filter((order) => order.status === 'waiting_cook')
@@ -352,120 +399,253 @@ function DashboardScreen({
       .filter(({ list }) => list.length > 0)
   }, [courierList, routes, now])
 
+  useEffect(() => {
+    if (isUserResized) return
+    const updateDefaultWidth = () => {
+      const dashboard = dashboardRef.current
+      if (!dashboard) return
+      const totalWidth = dashboard.getBoundingClientRect().width
+      if (!totalWidth) return
+      const resizerWidth = 12
+      const columnGap = 12
+      const baseColumnWidth = Math.max(240, (totalWidth - resizerWidth - columnGap * 3) / 6)
+      setRightColumnWidth(Math.floor(baseColumnWidth * 2))
+    }
+    updateDefaultWidth()
+    window.addEventListener('resize', updateDefaultWidth)
+    return () => window.removeEventListener('resize', updateDefaultWidth)
+  }, [isUserResized])
+
+  useEffect(() => {
+    if (!isResizing) return
+    const handlePointerMove = (event: PointerEvent) => {
+      const state = resizeStateRef.current
+      const dashboard = dashboardRef.current
+      if (!state || !dashboard) return
+      const totalWidth = dashboard.getBoundingClientRect().width
+      const resizerWidth = 12
+      const columnGap = 12
+      const minColumnWidth = 240
+      const minLeftWidth = minColumnWidth * 4 + columnGap * 3
+      const maxRightWidth = Math.max(
+        minColumnWidth,
+        totalWidth - resizerWidth - minLeftWidth,
+      )
+      const nextWidth = Math.min(
+        maxRightWidth,
+        Math.max(minColumnWidth, state.startWidth - (event.clientX - state.startX)),
+      )
+      setRightColumnWidth(Math.floor(nextWidth))
+    }
+    const handlePointerUp = () => {
+      setIsResizing(false)
+      resizeStateRef.current = null
+      document.body.classList.remove('is-resizing')
+      if (activePointerIdRef.current !== null) {
+        resizerRef.current?.releasePointerCapture(activePointerIdRef.current)
+        activePointerIdRef.current = null
+      }
+    }
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+  }, [isResizing])
+
   return (
-    <div className="dashboard">
-      <section className="dashboard__column">
-        <div className="column__title">Курьеры</div>
-        {courierSections.map(({ title, list }) => (
-          <div key={title} className="section">
-            <div className="section__title">{title}</div>
+    <div className="dashboard" ref={dashboardRef}>
+      <div className="dashboard__left">
+        <section className="dashboard__column">
+          <div className="column__title">Курьеры</div>
+          {courierSections.map(({ title, list }) => (
+            <div key={title} className="section">
+              <div className="section__title">{title}</div>
+              <div className="section__list">
+                {list.map((courier) => (
+                  <CardCourier
+                    key={courier.id}
+                    courier={courier}
+                    routes={routes}
+                    orders={orders}
+                    now={now}
+                    routeStageMin={routeStageMin}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="dashboard__column">
+          <div className="column__title">Заказы</div>
+          <OrdersSection
+            title="Готовы"
+            orders={ordersReady}
+            routes={routes}
+            now={now}
+            orderStageMin={orderStageMin}
+            routeStageMin={routeStageMin}
+          />
+          <OrdersSection
+            title="Готовятся"
+            orders={ordersCooking}
+            routes={routes}
+            now={now}
+            orderStageMin={orderStageMin}
+            routeStageMin={routeStageMin}
+          />
+          <OrdersSection
+            title="Ожидают готовки"
+            orders={ordersWaiting}
+            routes={routes}
+            now={now}
+            orderStageMin={orderStageMin}
+            routeStageMin={routeStageMin}
+          />
+        </section>
+
+        <section className="dashboard__column">
+          <div className="column__header">
+            <div className="column__title">Маршруты</div>
+            <button type="button" className="route-draft__action" onClick={createRouteDraft}>
+              Новый маршрут
+            </button>
+          </div>
+          {draftRoutes.length > 0 ? (
             <div className="section__list">
-              {list.map((courier) => (
-                <CardCourier
-                  key={courier.id}
-                  courier={courier}
-                  routes={routes}
+              {draftRoutes.map((route) => (
+                <RouteDraftCard
+                  key={route.id}
+                  route={route}
+                  couriers={courierList}
                   orders={orders}
                   now={now}
+                  orderStageMin={orderStageMin}
                   routeStageMin={routeStageMin}
+                  onDelete={deleteRouteDraft}
+                  onDetachCourier={detachCourierFromRoute}
+                  onAttachCourier={attachCourierToRoute}
+                  onDetachOrder={detachOrderFromRoute}
+                  onAttachOrder={attachOrderToRoute}
+                  onSend={sendRoute}
                 />
               ))}
             </div>
-          </div>
+          ) : null}
+        </section>
+
+        <section className="dashboard__column">
+          <div className="column__title">Доставка</div>
+          {assignedRoutes.length > 0 ? (
+            <div className="section">
+              <div className="section__title">Назначенные</div>
+              <div className="section__list">
+                {assignedRoutes.map((route) => (
+                  <RouteDeliveryCard
+                    key={route.id}
+                    route={route}
+                    courier={couriers[route.courierId]}
+                    orders={orders}
+                    now={now}
+                    orderStageMin={orderStageMin}
+                    routeStageMin={routeStageMin}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {clientRoutes.length > 0 ? (
+            <div className="section">
+              <div className="section__title">К клиенту</div>
+              <div className="section__list">
+                {clientRoutes.map((route) => (
+                  <RouteDeliveryCard
+                    key={route.id}
+                    route={route}
+                    courier={couriers[route.courierId]}
+                    orders={orders}
+                    now={now}
+                    orderStageMin={orderStageMin}
+                    routeStageMin={routeStageMin}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      <div
+        ref={resizerRef}
+        className={`dashboard__resizer${isResizing ? ' dashboard__resizer--active' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Изменение ширины колонки"
+        onPointerDown={(event) => {
+          const width = rightColumnWidth ?? 240
+          resizeStateRef.current = { startX: event.clientX, startWidth: width }
+          setIsUserResized(true)
+          setIsResizing(true)
+          document.body.classList.add('is-resizing')
+          activePointerIdRef.current = event.pointerId
+          event.currentTarget.setPointerCapture(event.pointerId)
+          event.preventDefault()
+        }}
+      >
+        <img className="dashboard__resizer-icon" src="/src/assets/dnd-map.svg" alt="" />
+      </div>
+
+      <section
+        className="dashboard__column dashboard__column--map"
+        style={rightColumnWidth ? { width: `${rightColumnWidth}px` } : undefined}
+      >
+        <MapWidget orders={orders} />
+      </section>
+    </div>
+  )
+}
+
+const MAP_BOUNDS = {
+  minLat: 59.951,
+  maxLat: 59.979,
+  minLng: 30.286,
+  maxLng: 30.333,
+}
+
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value))
+
+const getMarkerPosition = (coords: { lat: number; lng: number }) => {
+  const x = clamp01((coords.lng - MAP_BOUNDS.minLng) / (MAP_BOUNDS.maxLng - MAP_BOUNDS.minLng))
+  const y = clamp01((MAP_BOUNDS.maxLat - coords.lat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat))
+  return { x, y }
+}
+
+export function MapWidget({ orders }: { orders: Record<string, Order> }) {
+  const markers = Object.values(orders)
+    .filter((order) => order.status !== 'delivered')
+    .map((order) => ({ id: order.id, ...getMarkerPosition(order.coords) }))
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-xl bg-neutral-900">
+      <iframe
+        src="https://yandex.com/map-widget/v1/?ll=30.3125%2C59.965&z=13"
+        className="map-iframe absolute inset-0 h-full w-full border-0"
+        allowFullScreen
+        loading="lazy"
+      />
+      <div className="map-markers">
+        {markers.map((marker) => (
+          <span
+            key={marker.id}
+            className="map-marker"
+            style={{ left: `${marker.x * 100}%`, top: `${marker.y * 100}%` }}
+          />
         ))}
-      </section>
-
-      <section className="dashboard__column">
-        <div className="column__title">Заказы</div>
-        <OrdersSection
-          title="Готовы"
-          orders={ordersReady}
-          routes={routes}
-          now={now}
-          orderStageMin={orderStageMin}
-          routeStageMin={routeStageMin}
-        />
-        <OrdersSection
-          title="Готовятся"
-          orders={ordersCooking}
-          routes={routes}
-          now={now}
-          orderStageMin={orderStageMin}
-          routeStageMin={routeStageMin}
-        />
-        <OrdersSection
-          title="Ожидают готовки"
-          orders={ordersWaiting}
-          routes={routes}
-          now={now}
-          orderStageMin={orderStageMin}
-          routeStageMin={routeStageMin}
-        />
-      </section>
-
-      <section className="dashboard__column">
-        <div className="column__header">
-          <div className="column__title">Маршруты</div>
-          <button type="button" className="route-draft__action" onClick={createRouteDraft}>
-            Новый маршрут
-          </button>
-        </div>
-        {draftRoutes.length > 0 ? (
-          <div className="section__list">
-            {draftRoutes.map((route) => (
-              <RouteDraftCard
-                key={route.id}
-                route={route}
-                couriers={courierList}
-                orders={orders}
-                now={now}
-                onDelete={deleteRouteDraft}
-                onDetachCourier={detachCourierFromRoute}
-                onAttachCourier={attachCourierToRoute}
-                onDetachOrder={detachOrderFromRoute}
-                onAttachOrder={attachOrderToRoute}
-                onSend={sendRoute}
-              />
-            ))}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="dashboard__column">
-        <div className="column__title">Доставка</div>
-        {assignedRoutes.length > 0 ? (
-          <div className="section">
-            <div className="section__title">Назначенные</div>
-            <div className="section__list">
-              {assignedRoutes.map((route) => (
-                <RouteDeliveryCard
-                  key={route.id}
-                  route={route}
-                  courier={couriers[route.courierId]}
-                  orders={orders}
-                  now={now}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {clientRoutes.length > 0 ? (
-          <div className="section">
-            <div className="section__title">К клиенту</div>
-            <div className="section__list">
-              {clientRoutes.map((route) => (
-                <RouteDeliveryCard
-                  key={route.id}
-                  route={route}
-                  courier={couriers[route.courierId]}
-                  orders={orders}
-                  now={now}
-                />
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </section>
+      </div>
     </div>
   )
 }
@@ -585,8 +765,7 @@ function CardOrder({
   const [isDragging, setIsDragging] = useState(false)
   const [isNewWaitingOrder, setIsNewWaitingOrder] = useState(order.status === 'waiting_cook')
   const slaStatus = getOrderSlaStatus(order, now)
-  const { speedupFactor, deficitMin } = computeOrderRisk(order, now, { orderStageMin, routeStageMin })
-  const isBehindSchedule = speedupFactor > 1.05 || deficitMin > 0
+  const { isBehindSchedule } = getOrderRiskStatus(order, now, orderStageMin, routeStageMin)
   const isAssignedToDraft = Object.values(routes).some(
     (routeItem) => routeItem.status === 'draft' && routeItem.orderIds.includes(order.id),
   )
@@ -626,7 +805,7 @@ function CardOrder({
       }}
     >
       <div className="card__row">
-        <div className="card__title">{order.address}</div>
+        <div className="card__title">{formatOrderAddress(order.address)}</div>
         <div
           className={`sla-pill${slaStatus.isOverdue || isBehindSchedule ? ' sla-pill--overdue' : ''}`}
         >
@@ -643,6 +822,8 @@ type RouteDraftCardProps = {
   couriers: Courier[]
   orders: Record<string, Order>
   now: number
+  orderStageMin: OrderStageMin
+  routeStageMin: RouteStageMin
   onDelete: (routeId: string) => void
   onDetachCourier: (routeId: string) => void
   onAttachCourier: (routeId: string, courierId: string) => void
@@ -656,6 +837,8 @@ function RouteDraftCard({
   couriers,
   orders,
   now,
+  orderStageMin,
+  routeStageMin,
   onDelete,
   onDetachCourier,
   onAttachCourier,
@@ -793,10 +976,15 @@ function RouteDraftCard({
         {route.orderIds.map((orderId) => {
           const order = orders[orderId]
           const slaStatus = order ? getOrderSlaStatus(order, now) : { label: '0', isOverdue: false }
+          const riskStatus = order
+            ? getOrderRiskStatus(order, now, orderStageMin, routeStageMin)
+            : { isBehindSchedule: false }
           return (
             <div
               key={orderId}
-              className={`route-draft__order${slaStatus.isOverdue ? ' route-draft__order--overdue' : ''}`}
+              className={`route-draft__order${
+                slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' route-draft__order--overdue' : ''
+              }`}
             >
               <div className="route-draft__order-info">
                 <button
@@ -807,9 +995,17 @@ function RouteDraftCard({
                 >
                   ×
                 </button>
-                <span className="route-draft__order-title">{order?.address ?? orderId}</span>
+                <span className="route-draft__order-title">
+                  {order ? formatOrderAddress(order.address) : orderId}
+                </span>
               </div>
-              <span className={`sla-pill${slaStatus.isOverdue ? ' sla-pill--overdue' : ''}`}>{slaStatus.label}</span>
+              <span
+                className={`sla-pill${
+                  slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' sla-pill--overdue' : ''
+                }`}
+              >
+                {slaStatus.label}
+              </span>
             </div>
           )
         })}
@@ -834,7 +1030,7 @@ function RouteDraftCard({
               <option value="">Заказ +</option>
               {availableOrders.map((order) => (
                 <option key={order.id} value={order.id}>
-                  {order.address}
+                  {formatOrderAddress(order.address)}
                 </option>
               ))}
             </select>
@@ -865,11 +1061,15 @@ function RouteDeliveryCard({
   courier,
   orders,
   now,
+  orderStageMin,
+  routeStageMin,
 }: {
   route: Route
   courier?: Courier
   orders: Record<string, Order>
   now: number
+  orderStageMin: OrderStageMin
+  routeStageMin: RouteStageMin
 }) {
   const getElapsedMin = (startedAt?: number) =>
     startedAt ? Math.max(Math.floor((now - startedAt) / MINUTE_MS), 0) : 0
@@ -899,6 +1099,10 @@ function RouteDeliveryCard({
         {route.orderIds.map((orderId, index) => {
           const order = orders[orderId]
           const slaStatus = order ? getOrderSlaStatus(order, now) : { label: '0', isOverdue: false }
+          const riskStatus =
+            order && orderStageMin && routeStageMin
+              ? getOrderRiskStatus(order, now, orderStageMin, routeStageMin)
+              : { isBehindSchedule: false }
           const orderLabel =
             order?.status === 'enroute'
               ? formatElapsedLabel('В пути', order.statusStartedAt)
@@ -909,14 +1113,22 @@ function RouteDeliveryCard({
             <div
               key={orderId}
               className={`delivery__order${index === route.step.orderIndex ? ' delivery__order--active' : ''}${
-                slaStatus.isOverdue ? ' delivery__order--overdue' : ''
+                slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' delivery__order--overdue' : ''
               }${order?.status === 'delivered' ? ' delivery__order--delivered' : ''}`}
             >
               <div className="delivery__order-main">
-                <div className="delivery__order-title">{order?.address ?? orderId}</div>
+                <div className="delivery__order-title">
+                  {order ? formatOrderAddress(order.address) : orderId}
+                </div>
                 {orderLabel ? <span className="chip delivery__order-label">{orderLabel}</span> : null}
               </div>
-              <span className={`sla-pill${slaStatus.isOverdue ? ' sla-pill--overdue' : ''}`}>{slaStatus.label}</span>
+              <span
+                className={`sla-pill${
+                  slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' sla-pill--overdue' : ''
+                }`}
+              >
+                {slaStatus.label}
+              </span>
             </div>
           )
         })}

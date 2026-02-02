@@ -22,6 +22,7 @@ export type RouteStep = {
 export type Order = {
   id: string
   address: string
+  coords: { lat: number; lng: number }
   status: OrderStatus
   createdAt: number
   statusStartedAt: number
