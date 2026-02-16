@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import './App.css'
 import { useDashboardStore } from './store/useDashboardStore'
 import { type Courier, type Order, type Route, type RouteStepKind } from './model/types'
@@ -6,6 +6,12 @@ import { MINUTE_MS } from './model/rules'
 import { computeOrderRisk } from './model/risk'
 import burgerMenuIcon from './assets/burger-menu.svg'
 import dndMapIcon from './assets/dnd-map.svg'
+import walkingCourierIcon from './assets/Walking courier.svg'
+import bikeCourierIcon from './assets/Bike courier.svg'
+import carCourierIcon from './assets/Car courier 2.svg'
+import crossIcon from './assets/Cross.svg'
+import deleteIcon from './assets/Delete.svg'
+import plusIcon from './assets/Plus.svg'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
   pickup: 'Забирают заказ',
@@ -13,6 +19,12 @@ const routeStepLabel: Record<RouteStepKind, string> = {
   handoff: 'Выдают заказ',
   returning: 'Возвращаются',
 }
+
+const courierTypeIcons = {
+  pedestrian: walkingCourierIcon,
+  bike: bikeCourierIcon,
+  car: carCourierIcon,
+} as const
 
 const tabItems = ['Заказы', 'Смены', 'Курьеры', 'Статистика']
 
@@ -29,10 +41,10 @@ type RouteStageMin = {
   returning: number
 }
 
-type DndPayload = {
-  kind: 'courier' | 'order'
-  id: string
-}
+type DndPayload =
+  | { kind: 'courier'; id: string }
+  | { kind: 'order'; id: string }
+  | { kind: 'route-order'; id: string; routeId: string }
 
 const DND_MIME = 'application/x-dashboard-dnd'
 let lastDndPayload: DndPayload | null = null
@@ -45,7 +57,10 @@ const parseDndPayload = (event: DragEvent<HTMLElement>): DndPayload | null => {
   const raw = transfer.getData(DND_MIME) || transfer.getData('text/plain')
   if (!raw) return lastDndPayload
   try {
-    const parsed = JSON.parse(raw) as Partial<DndPayload>
+    const parsed = JSON.parse(raw) as { kind?: string; id?: string; routeId?: string }
+    if (parsed.kind === 'route-order' && typeof parsed.id === 'string' && typeof parsed.routeId === 'string') {
+      return { kind: 'route-order', id: parsed.id, routeId: parsed.routeId }
+    }
     if ((parsed.kind === 'courier' || parsed.kind === 'order') && typeof parsed.id === 'string') {
       return { kind: parsed.kind, id: parsed.id }
     }
@@ -58,13 +73,25 @@ const parseDndPayload = (event: DragEvent<HTMLElement>): DndPayload | null => {
 const setDndPayload = (event: DragEvent<HTMLElement>, payload: DndPayload) => {
   event.dataTransfer.setData(DND_MIME, JSON.stringify(payload))
   event.dataTransfer.setData('text/plain', JSON.stringify(payload))
-  event.dataTransfer.effectAllowed = 'copy'
+  event.dataTransfer.effectAllowed = payload.kind === 'route-order' ? 'move' : 'copy'
   lastDndPayload = payload
 }
 
 const hasDndPayload = (event: DragEvent<HTMLElement>) => {
   const types = Array.from(event.dataTransfer.types)
   return types.includes(DND_MIME) || types.includes('text/plain') || Boolean(lastDndPayload)
+}
+
+function setDragImageAsCopy(event: DragEvent<HTMLElement>, element: HTMLElement) {
+  const rect = element.getBoundingClientRect()
+  const mouseEvent = event as unknown as { offsetX: number; offsetY: number }
+  const offsetX = mouseEvent.offsetX ?? rect.width / 2
+  const offsetY = mouseEvent.offsetY ?? rect.height / 2
+  const dragEl = element.cloneNode(true) as HTMLElement
+  dragEl.style.cssText = `position: absolute; left: -9999px; top: 0; width: ${rect.width}px; height: ${rect.height}px; opacity: 0.9; pointer-events: none; box-sizing: border-box;`
+  document.body.appendChild(dragEl)
+  event.dataTransfer.setDragImage(dragEl, offsetX, offsetY)
+  setTimeout(() => dragEl.remove(), 0)
 }
 
 const hasDraftRoute = (routes: Record<string, Route>) =>
@@ -196,16 +223,6 @@ const getOrderRiskStatus = (
   }
 }
 
-const formatOrderAddress = (address: string) => {
-  const cleaned = address
-    .replace(/\s*(ул|пр|пер)\.\s*,?\s*/gi, ' ')
-    .replace(/\s+,/g, ',')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-  if (cleaned.includes(',')) return cleaned
-  return cleaned.replace(/(\D)\s+(\d)/, '$1, $2')
-}
-
 function App() {
   const now = useDashboardStore((state) => state.now)
   const isRunning = useDashboardStore((state) => state.isRunning)
@@ -227,6 +244,7 @@ function App() {
   const attachCourierToRoute = useDashboardStore((state) => state.attachCourierToRoute)
   const detachOrderFromRoute = useDashboardStore((state) => state.detachOrderFromRoute)
   const attachOrderToRoute = useDashboardStore((state) => state.attachOrderToRoute)
+  const reorderRouteOrders = useDashboardStore((state) => state.reorderRouteOrders)
   const sendRoute = useDashboardStore((state) => state.sendRoute)
   const setOrderCreateIntervalMin = useDashboardStore((state) => state.setOrderCreateIntervalMin)
   const setOrderStageMin = useDashboardStore((state) => state.setOrderStageMin)
@@ -295,6 +313,7 @@ function App() {
             attachCourierToRoute={attachCourierToRoute}
             detachOrderFromRoute={detachOrderFromRoute}
             attachOrderToRoute={attachOrderToRoute}
+            reorderRouteOrders={reorderRouteOrders}
             sendRoute={sendRoute}
             now={now}
             orderStageMin={orderStageMin}
@@ -334,6 +353,7 @@ type DashboardScreenProps = {
   attachCourierToRoute: (routeId: string, courierId: string) => void
   detachOrderFromRoute: (routeId: string, orderId: string) => void
   attachOrderToRoute: (routeId: string, orderId: string) => void
+  reorderRouteOrders: (routeId: string, fromIndex: number, toIndex: number) => void
   sendRoute: (routeId: string) => void
   now: number
   orderStageMin: OrderStageMin
@@ -350,6 +370,7 @@ function DashboardScreen({
   attachCourierToRoute,
   detachOrderFromRoute,
   attachOrderToRoute,
+  reorderRouteOrders,
   sendRoute,
   now,
   orderStageMin,
@@ -481,7 +502,7 @@ function DashboardScreen({
             </div>
           ))}
         </section>
-
+        <div className="dashboard__divider" aria-hidden />
         <section className="dashboard__column">
           <div className="column__title">Заказы</div>
           <OrdersSection
@@ -509,15 +530,17 @@ function DashboardScreen({
             routeStageMin={routeStageMin}
           />
         </section>
-
+        <div className="dashboard__divider" aria-hidden />
         <section className="dashboard__column">
-          <div className="column__header">
+          <div className="column__header column__header--routes">
             <div className="column__title">Маршруты</div>
-            <button type="button" className="route-draft__action" onClick={createRouteDraft}>
-              Новый маршрут
+            <button type="button" className="route-draft__action route-draft__action--add" onClick={createRouteDraft} aria-label="Новый маршрут">
+              <img src={plusIcon} alt="" width={12} height={12} />
             </button>
           </div>
-          {draftRoutes.length > 0 ? (
+          <div className="section">
+            <div className="section__title">Новый маршрут</div>
+            {draftRoutes.length > 0 ? (
             <div className="section__list">
               {draftRoutes.map((route) => (
                 <RouteDraftCard
@@ -533,13 +556,15 @@ function DashboardScreen({
                   onAttachCourier={attachCourierToRoute}
                   onDetachOrder={detachOrderFromRoute}
                   onAttachOrder={attachOrderToRoute}
+                  onReorderOrders={reorderRouteOrders}
                   onSend={sendRoute}
                 />
               ))}
             </div>
           ) : null}
+          </div>
         </section>
-
+        <div className="dashboard__divider" aria-hidden />
         <section className="dashboard__column">
           <div className="column__title">Доставка</div>
           {assignedRoutes.length > 0 ? (
@@ -728,6 +753,7 @@ function CardCourier({
         document.body.classList.add('is-dragging')
         maybeCreateAutoDraftRoute(routes, createRouteDraft)
         setDndPayload(event, { kind: 'courier', id: courier.id })
+        setDragImageAsCopy(event, event.currentTarget)
       }}
       onDragEnd={() => {
         setIsDragging(false)
@@ -741,6 +767,12 @@ function CardCourier({
       }}
     >
       <div className="card__row">
+        <img
+          src={courierTypeIcons[courier.type]}
+          alt=""
+          className="card__courier-icon"
+          aria-hidden
+        />
         <div className="card__title">{courier.name}</div>
       </div>
       <div className="chip chip--ghost">{label}</div>
@@ -794,6 +826,7 @@ function CardOrder({
         document.body.classList.add('is-dragging')
         maybeCreateAutoDraftRoute(routes, createRouteDraft)
         setDndPayload(event, { kind: 'order', id: order.id })
+        setDragImageAsCopy(event, event.currentTarget)
       }}
       onDragEnd={() => {
         setIsDragging(false)
@@ -807,12 +840,17 @@ function CardOrder({
       }}
     >
       <div className="card__row">
-        <div className="card__title">{formatOrderAddress(order.address)}</div>
+        <div className="card__title">{order.address}</div>
         <div
           className={`sla-pill${slaStatus.isOverdue || isBehindSchedule ? ' sla-pill--overdue' : ''}`}
         >
           {slaStatus.label}
         </div>
+      </div>
+      <div className="card__order-details">
+        <span className="card__order-number">{order.orderNumber}</span>
+        <span className="card__order-dot" aria-hidden />
+        <span className="card__order-cost">{order.totalRub.toLocaleString('ru-RU', { useGrouping: false })} ₽</span>
       </div>
       <div className="chip chip--ghost">{getOrderEtaLabel(order, now, orderStageMin)}</div>
     </div>
@@ -831,6 +869,7 @@ type RouteDraftCardProps = {
   onAttachCourier: (routeId: string, courierId: string) => void
   onDetachOrder: (routeId: string, orderId: string) => void
   onAttachOrder: (routeId: string, orderId: string) => void
+  onReorderOrders: (routeId: string, fromIndex: number, toIndex: number) => void
   onSend: (routeId: string) => void
 }
 
@@ -843,12 +882,14 @@ function RouteDraftCard({
   routeStageMin,
   onDelete,
   onDetachCourier,
-  onAttachCourier,
   onDetachOrder,
+  onAttachCourier,
   onAttachOrder,
+  onReorderOrders,
   onSend,
 }: RouteDraftCardProps) {
   const [isDragOver, setIsDragOver] = useState(false)
+  const selectedCourier = route.courierId ? couriers.find((c) => c.id === route.courierId) : undefined
   const availableCouriers = couriers.filter(
     (courier) => courier.status === 'free' && courier.id !== route.courierId,
   )
@@ -857,10 +898,6 @@ function RouteDraftCard({
     (order) =>
       order.status !== 'enroute' && order.status !== 'handoff' && !order.routeId && !selectedOrderIds.has(order.id),
   )
-  const courierName = route.courierId
-    ? couriers.find((courier) => courier.id === route.courierId)?.name ?? '—'
-    : undefined
-
   const canAttachOrder = route.orderIds.length < 3
   const canSend = route.courierId && route.orderIds.length >= 1 && route.orderIds.length <= 3
   const isEmpty = !route.courierId && route.orderIds.length === 0
@@ -879,6 +916,9 @@ function RouteDraftCard({
     }
     return false
   }
+
+  const isRouteOrderPayload = (p: DndPayload): p is { kind: 'route-order'; id: string; routeId: string } =>
+    p.kind === 'route-order'
 
   const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -927,9 +967,7 @@ function RouteDraftCard({
 
   return (
     <div
-      className={`${isEmpty ? 'card card--route card--route-empty' : 'card card--route'}${
-        isFull ? ' card--route-full' : ''
-      }${isDragOver && !isFull ? ' card--route-drop' : ''}`}
+      className="card card--route card--route-empty"
       onDropCapture={handleDrop}
       onDragOver={handleDragOver}
       onDragOverCapture={handleDragOverCapture}
@@ -937,89 +975,149 @@ function RouteDraftCard({
     >
       <div className="route-draft__header">
         <div className="route-draft__header-left">
-          {route.courierId ? (
-            <>
-              <button
-                type="button"
-                className="route-draft__remove"
-                onClick={() => onDetachCourier(route.id)}
-                aria-label="Удалить курьера"
-              >
-                ×
-              </button>
-              <div className="route-draft__title">{courierName}</div>
-            </>
-          ) : (
-            <div className="route-draft__placeholder">
-              <span className="route-draft__placeholder-text">Курьер</span>
-              <span className="route-draft__icon route-draft__icon--plus" aria-hidden="true" />
-              <select
-                className="route-draft__select"
-                value=""
-                onChange={(event) => {
-                  if (event.target.value) {
-                    onAttachCourier(route.id, event.target.value)
-                  }
-                }}
-              >
-                <option value="">Курьер +</option>
-                {availableCouriers.map((courier) => (
-                  <option key={courier.id} value={courier.id}>
-                    {courier.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="route-draft__divider" />
-      <div className="route-draft__orders">
-        {route.orderIds.map((orderId) => {
-          const order = orders[orderId]
-          const slaStatus = order ? getOrderSlaStatus(order, now) : { label: '0', isOverdue: false }
-          const riskStatus = order
-            ? getOrderRiskStatus(order, now, orderStageMin, routeStageMin)
-            : { isBehindSchedule: false }
-          return (
-            <div
-              key={orderId}
-              className={`route-draft__order${
-                slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' route-draft__order--overdue' : ''
-              }`}
-            >
-              <div className="route-draft__order-info">
+          <div className={`route-draft__placeholder route-draft__placeholder--block route-draft__placeholder--empty`}>
+            {route.courierId && selectedCourier ? (
+              <>
                 <button
                   type="button"
                   className="route-draft__remove route-draft__remove--small"
-                  onClick={() => onDetachOrder(route.id, orderId)}
-                  aria-label="Удалить заказ"
+                  onClick={() => onDetachCourier(route.id)}
+                  aria-label="Удалить курьера"
                 >
-                  ×
+                  <img src={crossIcon} alt="" width={16} height={16} aria-hidden />
                 </button>
-                <span className="route-draft__order-title">
-                  {order ? formatOrderAddress(order.address) : orderId}
+                <span className="route-draft__courier-name">{selectedCourier.name}</span>
+              </>
+            ) : (
+              <>
+                <span className="route-draft__header-icon">
+                  <img src={plusIcon} alt="" className="route-draft__plus-icon" width={16} height={16} aria-hidden />
+                </span>
+                <span className="route-draft__placeholder-text">Выберите курьера</span>
+                <select
+                  className="route-draft__select"
+                  value=""
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      onAttachCourier(route.id, event.target.value)
+                    }
+                  }}
+                >
+                  <option value="">Выберите курьера</option>
+                  {availableCouriers.map((courier) => {
+                    const freeMinutes = Math.max(
+                      Math.floor((now - (courier.freeSince ?? now)) / MINUTE_MS),
+                      0,
+                    )
+                    return (
+                      <option key={courier.id} value={courier.id}>
+                        {courier.name} — {freeMinutes} мин
+                      </option>
+                    )
+                  })}
+                </select>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="route-draft__orders">
+        {route.orderIds.map((orderId, index) => {
+          const order = orders[orderId]
+          const slaStatus = order ? getOrderSlaStatus(order, now) : { label: '0', isOverdue: false }
+          const riskStatus =
+            order && orderStageMin && routeStageMin
+              ? getOrderRiskStatus(order, now, orderStageMin, routeStageMin)
+              : { isBehindSchedule: false }
+          return (
+            <Fragment key={orderId}>
+              <div
+                className={`route-draft__order${
+                  slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' route-draft__order--overdue' : ''
+                }`}
+                draggable
+                onDragStart={(e) => {
+                  setDndPayload(e, { kind: 'route-order', id: orderId, routeId: route.id })
+                  e.dataTransfer.effectAllowed = 'move'
+                  setDragImageAsCopy(e, e.currentTarget)
+                }}
+                onDragOver={(e) => {
+                  const payload = parseDndPayload(e)
+                  if (payload && isRouteOrderPayload(payload) && payload.routeId === route.id) {
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    e.stopPropagation()
+                  }
+                }}
+                onDragLeave={() => {}}
+                onDrop={(e) => {
+                  const payload = parseDndPayload(e)
+                  if (payload && isRouteOrderPayload(payload) && payload.routeId === route.id) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const fromIndex = route.orderIds.indexOf(payload.id)
+                    if (fromIndex !== -1 && fromIndex !== index) {
+                      onReorderOrders(route.id, fromIndex, index)
+                    }
+                  }
+                }}
+              >
+                <div className="route-draft__order-info">
+                  <button
+                    type="button"
+                    className="route-draft__remove route-draft__remove--small"
+                    onClick={() => onDetachOrder(route.id, orderId)}
+                    aria-label="Удалить заказ"
+                  >
+                    <img src={crossIcon} alt="" width={16} height={16} aria-hidden />
+                  </button>
+                  <span className="route-draft__order-title">
+                    {order ? order.address : orderId}
+                  </span>
+                </div>
+                <span
+                  className={`sla-pill${
+                    slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' sla-pill--overdue' : ''
+                  }`}
+                >
+                  {slaStatus.label}
                 </span>
               </div>
-              <span
-                className={`sla-pill${
-                  slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' sla-pill--overdue' : ''
-                }`}
-              >
-                {slaStatus.label}
-              </span>
-            </div>
+              {index < route.orderIds.length - 1 ? (() => {
+                const aboveRed = slaStatus.isOverdue || riskStatus.isBehindSchedule
+                const nextOrderId = route.orderIds[index + 1]
+                const nextOrder = orders[nextOrderId]
+                const nextSla = nextOrder ? getOrderSlaStatus(nextOrder, now) : { isOverdue: false }
+                const nextRisk = nextOrder && orderStageMin && routeStageMin
+                  ? getOrderRiskStatus(nextOrder, now, orderStageMin, routeStageMin)
+                  : { isBehindSchedule: false }
+                const belowRed = nextSla.isOverdue || nextRisk.isBehindSchedule
+                const gradientId = `merger-${route.id}-${index}`
+                const gray = '#282A2E'
+                const red = '#570F27'
+                const topColor = aboveRed ? red : gray
+                const bottomColor = belowRed ? red : gray
+                return (
+                  <div className="route-draft__merger" aria-hidden>
+                    <svg width={14} height={6} viewBox="0 0 14 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <linearGradient id={gradientId} x1="7" y1="0" x2="7" y2="6" gradientUnits="userSpaceOnUse">
+                          <stop stopColor={topColor} />
+                          <stop offset={1} stopColor={bottomColor} />
+                        </linearGradient>
+                      </defs>
+                      <path d="M14 0C12.4149 0.080308 10 0.73824 10 3C10 5.26176 12.3431 6 14 6H0C1.65685 6 4 5.26176 4 3C4 0.73824 1.65685 0 0 0H14Z" fill={`url(#${gradientId})`} />
+                    </svg>
+                  </div>
+                )
+              })() : null}
+            </Fragment>
           )
         })}
         {canAttachOrder ? (
-          <div className="route-draft__order route-draft__order--add">
-            <div className="route-draft__order-info">
-              <span className="route-draft__order-placeholder">Заказ</span>
-              <span
-                className="route-draft__icon route-draft__icon--plus route-draft__icon--small"
-                aria-hidden="true"
-              />
-            </div>
+          <div className="route-draft__placeholder route-draft__placeholder--block route-draft__placeholder--empty">
+            <img src={plusIcon} alt="" className="route-draft__plus-icon" width={16} height={16} aria-hidden />
+            <span className="route-draft__placeholder-text">Выберите заказы</span>
             <select
               className="route-draft__select"
               value=""
@@ -1029,10 +1127,10 @@ function RouteDraftCard({
                 }
               }}
             >
-              <option value="">Заказ +</option>
+              <option value="">Выберите заказы</option>
               {availableOrders.map((order) => (
                 <option key={order.id} value={order.id}>
-                  {formatOrderAddress(order.address)}
+                  {order.address}
                 </option>
               ))}
             </select>
@@ -1040,18 +1138,25 @@ function RouteDraftCard({
         ) : null}
       </div>
       <div className="route-draft__footer">
-        <button type="button" className="route-draft__action" onClick={() => onDelete(route.id)}>
-          Удалить
-        </button>
         {!isEmpty ? (
-          <button
-            type="button"
-            className="route-draft__action route-draft__action--primary"
-            disabled={!canSend}
-            onClick={() => onSend(route.id)}
-          >
-            Отправить
-          </button>
+          <>
+            <button
+              type="button"
+              className="route-draft__action route-draft__action--primary"
+              disabled={!canSend}
+              onClick={() => onSend(route.id)}
+            >
+              Назначить
+            </button>
+            <button
+              type="button"
+              className="route-draft__action route-draft__action--icon"
+              onClick={() => onDelete(route.id)}
+              aria-label="Удалить маршрут"
+            >
+              <img src={deleteIcon} alt="" aria-hidden />
+            </button>
+          </>
         ) : null}
       </div>
     </div>
@@ -1111,27 +1216,60 @@ function RouteDeliveryCard({
               : order?.status === 'handoff'
                 ? formatElapsedLabel('Выдача клиенту', order.statusStartedAt)
                 : null
-          return (
-            <div
-              key={orderId}
-              className={`delivery__order${index === route.step.orderIndex ? ' delivery__order--active' : ''}${
-                slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' delivery__order--overdue' : ''
-              }${order?.status === 'delivered' ? ' delivery__order--delivered' : ''}`}
-            >
-              <div className="delivery__order-main">
-                <div className="delivery__order-title">
-                  {order ? formatOrderAddress(order.address) : orderId}
-                </div>
-                {orderLabel ? <span className="chip delivery__order-label">{orderLabel}</span> : null}
+          const isLast = index === route.orderIds.length - 1
+          let mergerNode: React.ReactNode = null
+          if (!isLast) {
+            const aboveRed = slaStatus.isOverdue || riskStatus.isBehindSchedule
+            const nextOrderId = route.orderIds[index + 1]
+            const nextOrder = orders[nextOrderId]
+            const nextSla = nextOrder ? getOrderSlaStatus(nextOrder, now) : { isOverdue: false }
+            const nextRisk =
+              nextOrder && orderStageMin && routeStageMin
+                ? getOrderRiskStatus(nextOrder, now, orderStageMin, routeStageMin)
+                : { isBehindSchedule: false }
+            const belowRed = nextSla.isOverdue || nextRisk.isBehindSchedule
+            const gradientId = `delivery-merger-${route.id}-${index}`
+            const gray = '#282A2E'
+            const red = '#570F27'
+            const topColor = aboveRed ? red : gray
+            const bottomColor = belowRed ? red : gray
+            mergerNode = (
+              <div className="delivery__merger" aria-hidden>
+                <svg width={14} height={6} viewBox="0 0 14 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id={gradientId} x1="7" y1="0" x2="7" y2="6" gradientUnits="userSpaceOnUse">
+                      <stop stopColor={topColor} />
+                      <stop offset={1} stopColor={bottomColor} />
+                    </linearGradient>
+                  </defs>
+                  <path d="M14 0C12.4149 0.080308 10 0.73824 10 3C10 5.26176 12.3431 6 14 6H0C1.65685 6 4 5.26176 4 3C4 0.73824 1.65685 0 0 0H14Z" fill={`url(#${gradientId})`} />
+                </svg>
               </div>
-              <span
-                className={`sla-pill${
-                  slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' sla-pill--overdue' : ''
-                }`}
+            )
+          }
+          return (
+            <Fragment key={orderId}>
+              <div
+                className={`delivery__order${index === route.step.orderIndex ? ' delivery__order--active' : ''}${
+                  slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' delivery__order--overdue' : ''
+                }${order?.status === 'delivered' ? ' delivery__order--delivered' : ''}`}
               >
-                {slaStatus.label}
-              </span>
-            </div>
+                <div className="delivery__order-main">
+                  <div className="delivery__order-title">
+                    {order ? order.address : orderId}
+                  </div>
+                  {orderLabel ? <span className="chip delivery__order-label">{orderLabel}</span> : null}
+                </div>
+                <span
+                  className={`sla-pill${
+                    slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' sla-pill--overdue' : ''
+                  }`}
+                >
+                  {slaStatus.label}
+                </span>
+              </div>
+              {mergerNode}
+            </Fragment>
           )
         })}
       </div>

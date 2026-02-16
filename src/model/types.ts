@@ -10,6 +10,9 @@ export type OrderStatus =
 
 export type CourierStatus = 'free' | 'assigned' | 'returning'
 
+/** Тип курьера: пеший, велокурьер, авто */
+export type CourierType = 'pedestrian' | 'bike' | 'car'
+
 export type RouteStatus = 'draft' | 'sent' | 'done'
 
 export type RouteStepKind = 'pickup' | 'enroute' | 'handoff' | 'returning'
@@ -22,6 +25,10 @@ export type RouteStep = {
 export type Order = {
   id: string
   address: string
+  /** Номер заказа (для отображения) */
+  orderNumber: number
+  /** Стоимость заказа в рублях */
+  totalRub: number
   coords: { lat: number; lng: number }
   status: OrderStatus
   createdAt: number
@@ -35,6 +42,7 @@ export type Order = {
 export type Courier = {
   id: string
   name: string
+  type: CourierType
   status: CourierStatus
   freeSince: number
   routeId?: string

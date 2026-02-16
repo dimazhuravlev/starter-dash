@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { type Courier, type Order, type Route } from '../model/types'
+import { type Courier, type CourierType, type Order, type Route } from '../model/types'
 import { createSeedOrders, step, type DashboardState } from './simulation'
 import {
   MINUTE_MS,
@@ -20,6 +20,7 @@ type DashboardActions = {
   attachCourierToRoute: (routeId: string, courierId: string) => void
   detachOrderFromRoute: (routeId: string, orderId: string) => void
   attachOrderToRoute: (routeId: string, orderId: string) => void
+  reorderRouteOrders: (routeId: string, fromIndex: number, toIndex: number) => void
   sendRoute: (routeId: string) => void
   resetSeed: () => void
   setOrderStageMin: (stage: keyof typeof ORDER_STAGE_MIN, value: number) => void
@@ -36,6 +37,8 @@ const courierNames = [
   'Пак Константин',
   'Гринько Екатерина',
 ]
+
+const COURIER_TYPES: CourierType[] = ['pedestrian', 'bike', 'car']
 
 type DashboardSettings = Pick<
   DashboardState,
@@ -71,6 +74,7 @@ const buildSeedState = (settings?: Partial<DashboardSettings>): DashboardState =
     couriers[courierId] = {
       id: courierId,
       name,
+      type: COURIER_TYPES[index % COURIER_TYPES.length],
       status: 'free',
       freeSince: getRandomFreeSince(now),
     }
@@ -228,6 +232,24 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
                 ...route,
                 orderIds: [...route.orderIds, orderId],
               },
+            },
+          }
+        })
+      },
+      reorderRouteOrders: (routeId, fromIndex, toIndex) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || route.status !== 'draft') return state
+          const ids = [...route.orderIds]
+          if (fromIndex < 0 || fromIndex >= ids.length || toIndex < 0 || toIndex >= ids.length) return state
+          if (fromIndex === toIndex) return state
+          const [removed] = ids.splice(fromIndex, 1)
+          ids.splice(toIndex, 0, removed)
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: { ...route, orderIds: ids },
             },
           }
         })

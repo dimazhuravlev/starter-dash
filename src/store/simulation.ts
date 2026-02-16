@@ -49,19 +49,23 @@ const getRouteStageMs = (routeStageMin: RouteStageMin): Record<RouteStepKind, nu
 })
 
 const ADDRESS_SEEDS = [
-  { address: 'Каменноостровский пр., 10', coords: { lat: 59.9588, lng: 30.3081 } },
-  { address: 'Большой пр. П.С., 18', coords: { lat: 59.9599, lng: 30.2911 } },
-  { address: 'Чкаловский пр., 15', coords: { lat: 59.9656, lng: 30.3035 } },
-  { address: 'Кронверкская ул., 29', coords: { lat: 59.9559, lng: 30.3224 } },
-  { address: 'Пионерская ул., 7', coords: { lat: 59.9722, lng: 30.2917 } },
-  { address: 'Ропшинская ул., 3', coords: { lat: 59.9683, lng: 30.3056 } },
-  { address: 'Барочная ул., 6', coords: { lat: 59.9764, lng: 30.3032 } },
-  { address: 'Корпусная ул., 9', coords: { lat: 59.9651, lng: 30.3187 } },
-  { address: 'ул. Ленина, 23', coords: { lat: 59.9595, lng: 30.3266 } },
-  { address: 'ул. Введенская, 12', coords: { lat: 59.9647, lng: 30.2979 } },
-  { address: 'ул. Профессора Попова, 38', coords: { lat: 59.9729, lng: 30.3134 } },
-  { address: 'наб. реки Карповки, 10', coords: { lat: 59.9704, lng: 30.3044 } },
-  { address: 'ул. Льва Толстого, 7', coords: { lat: 59.9669, lng: 30.3122 } },
+  { address: 'Серебристый бул. 29к2', coords: { lat: 59.9588, lng: 30.3081 } },
+  { address: 'ул. Карбышева 6к1', coords: { lat: 59.9599, lng: 30.2911 } },
+  { address: 'наб. Чёрной речки 3к2', coords: { lat: 59.9656, lng: 30.3035 } },
+  { address: 'Днепропетровская ул. 7', coords: { lat: 59.9559, lng: 30.3224 } },
+  { address: 'ул. Лидии Зверевой 5к1', coords: { lat: 59.9722, lng: 30.2917 } },
+  { address: 'Торфяная дор. 17к2', coords: { lat: 59.9683, lng: 30.3056 } },
+  { address: 'ал. Поликарпова 2', coords: { lat: 59.9764, lng: 30.3032 } },
+  { address: 'ул. 9 Мая 8', coords: { lat: 59.9651, lng: 30.3187 } },
+  { address: 'ул. Жуковского 45', coords: { lat: 59.9595, lng: 30.3266 } },
+  { address: 'Мгинский пер. 5', coords: { lat: 59.9647, lng: 30.2979 } },
+  { address: 'Решетникова 12к1', coords: { lat: 59.9729, lng: 30.3134 } },
+  { address: 'Коломяжский пр. 15к2', coords: { lat: 59.9704, lng: 30.3044 } },
+  { address: '18-я лн. Васильевского острова 29И', coords: { lat: 59.9669, lng: 30.2722 } },
+  { address: 'ул. Профессора Попова 37Щ', coords: { lat: 59.9729, lng: 30.3134 } },
+  { address: 'Светлановский пр. 8', coords: { lat: 60.0012, lng: 30.3544 } },
+  { address: '3-я Красноармейская ул. 13', coords: { lat: 59.9188, lng: 30.3187 } },
+  { address: 'пл. Льва Мациевича 2', coords: { lat: 59.9845, lng: 30.2811 } },
 ]
 
 const COOKING_PIPELINE: OrderStatus[] = [
@@ -93,9 +97,13 @@ const createOrder = (
   const seed = ADDRESS_SEEDS[index % ADDRESS_SEEDS.length]
   const duplicateIndex = Math.floor(index / ADDRESS_SEEDS.length)
   const suffix = duplicateIndex > 0 ? `, кв. ${duplicateIndex + 1}` : ''
+  const orderNumber = 30000 + index + Math.floor(Math.random() * 20000)
+  const totalRub = 400 + Math.floor(Math.random() * 2600)
   return {
     id,
     address: `${seed.address}${suffix}`,
+    orderNumber,
+    totalRub,
     coords: seed.coords,
     status: 'waiting_cook',
     createdAt,
