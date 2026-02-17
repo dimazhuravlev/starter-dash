@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { flushSync } from 'react-dom'
 import './App.css'
 import { useDashboardStore } from './store/useDashboardStore'
 import { type Courier, type Order, type Route, type RouteStepKind, RESTAURANT_COORDS } from './model/types'
@@ -13,6 +14,8 @@ import crossIcon from './assets/Cross.svg'
 import deleteIcon from './assets/Delete.svg'
 import editIcon from './assets/Edit.svg'
 import plusIcon from './assets/Plus.svg'
+import settingsIcon from './assets/Settings.svg'
+import exitIcon from './assets/Exit.svg'
 import { MapboxMap } from './components/MapboxMap'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
@@ -29,6 +32,14 @@ const courierTypeIcons = {
 } as const
 
 const tabItems = ['Заказы', 'Смены', 'Курьеры', 'Статистика']
+
+const restaurantTabs = [
+  { label: 'Большой', count: 5 },
+  { label: 'Пошехонское', count: 82 },
+  { label: 'Некрасова', count: 11 },
+  { label: 'Мира', count: 12 },
+  { label: 'Ярославская', count: 21 },
+]
 
 type OrderStageMin = {
   waiting_cook: number
@@ -86,9 +97,8 @@ const hasDndPayload = (event: DragEvent<HTMLElement>) => {
 
 function setDragImageAsCopy(event: DragEvent<HTMLElement>, element: HTMLElement) {
   const rect = element.getBoundingClientRect()
-  const mouseEvent = event as unknown as { offsetX: number; offsetY: number }
-  const offsetX = mouseEvent.offsetX ?? rect.width / 2
-  const offsetY = mouseEvent.offsetY ?? rect.height / 2
+  const offsetX = event.clientX - rect.left
+  const offsetY = event.clientY - rect.top
   const dragEl = element.cloneNode(true) as HTMLElement
   dragEl.style.cssText = `position: absolute; left: -9999px; top: 0; width: ${rect.width}px; height: ${rect.height}px; opacity: 0.9; pointer-events: none; box-sizing: border-box;`
   document.body.appendChild(dragEl)
@@ -256,6 +266,7 @@ function App() {
 
   const [screen, setScreen] = useState<'dashboard' | 'debug'>('dashboard')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [activeRestaurantTab, setActiveRestaurantTab] = useState(0)
 
   useEffect(() => {
     if (!isRunning) {
@@ -294,18 +305,43 @@ function App() {
           ))}
         </div>
         <div className="app-header__right">
+          <button type="button" className="route-draft__action route-draft__action--icon" aria-label="Настройки">
+            <img src={settingsIcon} alt="" aria-hidden />
+          </button>
           <button
             type="button"
-            className={isDebug ? 'debug-toggle debug-toggle--active' : 'debug-toggle'}
+            className={`route-draft__action app-header__user-btn${isDebug ? ' app-header__user-btn--active' : ''}`}
             onClick={() => setScreen(isDebug ? 'dashboard' : 'debug')}
           >
-            Дебаг панель
+            Дебаг
+          </button>
+          <button type="button" className="route-draft__action app-header__user-btn" aria-label="Выход">
+            <img src={exitIcon} alt="" className="app-header__user-icon" width={16} height={16} aria-hidden />
+            <span className="app-header__user-name">Попова И.</span>
           </button>
         </div>
       </header>
 
+      {screen === 'dashboard' && (
+        <div className="app-subheader">
+          <div className="app-subheader__tabs">
+            {restaurantTabs.map(({ label, count }, index) => (
+              <button
+                key={`${label}-${count}`}
+                type="button"
+                className={`app-subheader__tab${index === activeRestaurantTab ? ' app-subheader__tab--active' : ''}`}
+                onClick={() => setActiveRestaurantTab(index)}
+              >
+                <span className="app-subheader__tab-label">{label}, {count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <main className="app-content">
         {screen === 'dashboard' ? (
+          activeRestaurantTab === 0 ? (
           <DashboardScreen
             orders={orders}
             couriers={couriers}
@@ -323,6 +359,11 @@ function App() {
             orderStageMin={orderStageMin}
             routeStageMin={routeStageMin}
           />
+          ) : (
+            <div className="app-content__empty">
+              Заказы {restaurantTabs[activeRestaurantTab].label}, {restaurantTabs[activeRestaurantTab].count}
+            </div>
+          )
         ) : (
           <DebugPanelScreen
             now={now}
@@ -393,16 +434,75 @@ function DashboardScreen({
   const [isResizing, setIsResizing] = useState(false)
   const [isUserResized, setIsUserResized] = useState(false)
   const [mapFocusCoords, setMapFocusCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [highlightedOrderIdFromMap, setHighlightedOrderIdFromMap] = useState<string | null>(null)
+  const highlightedOrderIdFromMapRef = useRef(highlightedOrderIdFromMap)
+  useEffect(() => {
+    highlightedOrderIdFromMapRef.current = highlightedOrderIdFromMap
+  }, [highlightedOrderIdFromMap])
   const [mapFocusBounds, setMapFocusBounds] = useState<{
     sw: { lat: number; lng: number }
     ne: { lat: number; lng: number }
   } | null>(null)
   const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null)
+  const [draftSectionExiting, setDraftSectionExiting] = useState(false)
+  const [pendingSendRouteId, setPendingSendRouteId] = useState<string | null>(null)
+  const [recentlySentRouteIds, setRecentlySentRouteIds] = useState<string[]>([])
+  const [pendingRevertRouteId, setPendingRevertRouteId] = useState<string | null>(null)
+  const [recentlyRevertedToDraftRouteIds, setRecentlyRevertedToDraftRouteIds] = useState<string[]>([])
+  const [routeFlashTrigger, setRouteFlashTrigger] = useState<number | null>(null)
+  const nextRevertedDraftIdRef = useRef<string | null>(null)
+
+  const handleSendRouteClick = useCallback((routeId: string) => {
+    setPendingSendRouteId(routeId)
+  }, [])
+
+  const handleSendAfterExit = useCallback(
+    (routeId: string) => {
+      sendRoute(routeId)
+      setRouteFlashTrigger(Date.now())
+      setPendingSendRouteId(null)
+      setRecentlySentRouteIds((prev) => [...prev, routeId])
+      window.setTimeout(() => {
+        setRecentlySentRouteIds((prev) => prev.filter((id) => id !== routeId))
+      }, 350)
+    },
+    [sendRoute],
+  )
+
+  const handleRevertClick = useCallback((routeId: string) => {
+    setPendingRevertRouteId(routeId)
+  }, [])
+
+  const handleRevertAfterExit = useCallback(
+    (routeId: string) => {
+      nextRevertedDraftIdRef.current = routeId
+      flushSync(() => {
+        setPendingRevertRouteId(null)
+        setRecentlyRevertedToDraftRouteIds((prev) => [...prev, routeId])
+      })
+      requestAnimationFrame(() => {
+        revertRouteToDraft(routeId)
+      })
+      window.setTimeout(() => {
+        setRecentlyRevertedToDraftRouteIds((prev) => prev.filter((id) => id !== routeId))
+        nextRevertedDraftIdRef.current = null
+      }, 350)
+    },
+    [revertRouteToDraft],
+  )
 
   const unassignedOrders = orderList.filter((order) => !order.routeId)
   const ordersWaiting = unassignedOrders.filter((order) => order.status === 'waiting_cook')
   const ordersCooking = unassignedOrders.filter((order) => order.status === 'cooking')
   const ordersReady = unassignedOrders.filter((order) => order.status === 'ready')
+
+  const orderIdsInRoute = useMemo(() => {
+    const ids: string[] = []
+    Object.values(routes).forEach((route) => {
+      route.orderIds.forEach((id) => ids.push(id))
+    })
+    return ids
+  }, [routes])
 
   const draftRoutes = routeList.filter((route) => route.status === 'draft')
   const sentRoutes = routeList.filter((route) => route.status === 'sent')
@@ -471,6 +571,10 @@ function DashboardScreen({
     [orderList, now, orderStageMin, routeStageMin, focusedRouteId, routes],
   )
 
+  const handleDeleteDraft = useCallback((routeId: string) => {
+    deleteRouteDraft(routeId)
+  }, [deleteRouteDraft])
+
   const focusMapOnRoute = useCallback((routeId: string) => {
     const state = useDashboardStore.getState()
     const route = state.routes[routeId]
@@ -489,6 +593,59 @@ function DashboardScreen({
       ne: { lng: Math.max(...lngs), lat: Math.max(...lats) },
     })
   }, [])
+
+  const handleMarkerClick = useCallback(
+    (marker: { id: string }) => {
+      if (highlightedOrderIdFromMapRef.current === marker.id) {
+        setHighlightedOrderIdFromMap(null)
+        requestAnimationFrame(() => {
+          setHighlightedOrderIdFromMap(marker.id)
+        })
+      } else {
+        setHighlightedOrderIdFromMap(marker.id)
+      }
+      const state = useDashboardStore.getState()
+      const routeContainingOrder = Object.values(state.routes).find((r) => r.orderIds.includes(marker.id))
+      if (routeContainingOrder) {
+        focusMapOnRoute(routeContainingOrder.id)
+      } else {
+        setFocusedRouteId(null)
+        setMapFocusBounds(null)
+      }
+    },
+    [focusMapOnRoute],
+  )
+
+  useEffect(() => {
+    if (!focusedRouteId) return
+    const route = routes[focusedRouteId]
+    const routeCardVisible =
+      route &&
+      (route.status === 'draft' ||
+        (route.status === 'sent' && route.step.kind !== 'returning'))
+    if (!routeCardVisible) {
+      setFocusedRouteId(null)
+      setMapFocusBounds(null)
+    }
+  }, [focusedRouteId, routes])
+
+  const handleMapBackgroundClick = useCallback(() => {
+    setHighlightedOrderIdFromMap(null)
+  }, [])
+
+  const handleOrderAddToRouteFromMap = useCallback(
+    (orderId: string) => {
+      const draftWithSpace = draftRoutes.find((r) => r.orderIds.length < 3)
+      const routeId = draftWithSpace ? draftWithSpace.id : createRouteDraft()
+      setHighlightedOrderIdFromMap(null)
+      attachOrderToRoute(routeId, orderId)
+      focusMapOnRoute(routeId)
+      requestAnimationFrame(() => {
+        setHighlightedOrderIdFromMap(orderId)
+      })
+    },
+    [draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],
+  )
 
   useEffect(() => {
     if (isUserResized) return
@@ -573,6 +730,7 @@ function DashboardScreen({
             now={now}
             orderStageMin={orderStageMin}
             routeStageMin={routeStageMin}
+            highlightedOrderIdFromMap={highlightedOrderIdFromMap}
             onOrderCardClick={(coords) => {
               setFocusedRouteId(null)
               setMapFocusBounds(null)
@@ -587,6 +745,7 @@ function DashboardScreen({
             now={now}
             orderStageMin={orderStageMin}
             routeStageMin={routeStageMin}
+            highlightedOrderIdFromMap={highlightedOrderIdFromMap}
             onOrderCardClick={(coords) => {
               setFocusedRouteId(null)
               setMapFocusBounds(null)
@@ -601,6 +760,7 @@ function DashboardScreen({
             now={now}
             orderStageMin={orderStageMin}
             routeStageMin={routeStageMin}
+            highlightedOrderIdFromMap={highlightedOrderIdFromMap}
             onOrderCardClick={(coords) => {
               setFocusedRouteId(null)
               setMapFocusBounds(null)
@@ -611,36 +771,54 @@ function DashboardScreen({
         </section>
         <div className="dashboard__divider" aria-hidden />
         <section className="dashboard__column">
-          <div className="column__title">Маршруты</div>
-          <div className="section">
-            <button type="button" className="section__title-row section__title-row--action" onClick={createRouteDraft} aria-label="Новый маршрут">
-              <span className="section__title">Новый маршрут</span>
-              <img src={plusIcon} alt="" width={12} height={12} />
-            </button>
-            <div className="section__list">
-              {draftRoutes.map((route) => (
-                <RouteDraftCard
-                  key={route.id}
-                  route={route}
-                  couriers={courierList}
-                  orders={orders}
-                  now={now}
-                  orderStageMin={orderStageMin}
-                  routeStageMin={routeStageMin}
-                  onDelete={deleteRouteDraft}
-                  onDetachCourier={detachCourierFromRoute}
-                  onAttachCourier={attachCourierToRoute}
-                  onDetachOrder={detachOrderFromRoute}
-                  onAttachOrder={(routeId, orderId) => {
-                    attachOrderToRoute(routeId, orderId)
-                    focusMapOnRoute(routeId)
-                  }}
-                  onReorderOrders={reorderRouteOrders}
-                  onSend={sendRoute}
-                />
-              ))}
+          <button
+            type="button"
+            className="column__title column__title--with-action column__title--button"
+            onClick={createRouteDraft}
+            aria-label="Новый маршрут"
+          >
+            <span>Маршруты</span>
+            <img src={plusIcon} alt="" width={16} height={16} />
+          </button>
+          {(draftRoutes.length > 0 || draftSectionExiting) ? (
+            <div
+              className={`section${draftSectionExiting ? ' section--route-exiting' : ''}`}
+              onAnimationEnd={(e) => {
+                if (e.animationName === 'route-draft-disappear') setDraftSectionExiting(false)
+              }}
+            >
+              <div className="section__title">Новый маршрут</div>
+              <div className="section__list">
+                {draftRoutes.map((route) => (
+                  <RouteDraftCard
+                    key={route.id}
+                    route={route}
+                    couriers={courierList}
+                    orders={orders}
+                    now={now}
+                    orderStageMin={orderStageMin}
+                    routeStageMin={routeStageMin}
+                    highlightedOrderIdFromMap={highlightedOrderIdFromMap}
+                    isJustAppeared={recentlyRevertedToDraftRouteIds.includes(route.id) || nextRevertedDraftIdRef.current === route.id}
+                    onDelete={handleDeleteDraft}
+                    onDetachCourier={detachCourierFromRoute}
+                    onAttachCourier={attachCourierToRoute}
+                    onDetachOrder={detachOrderFromRoute}
+                    onAttachOrder={(routeId, orderId) => {
+                      attachOrderToRoute(routeId, orderId)
+                      focusMapOnRoute(routeId)
+                    }}
+                    onReorderOrders={reorderRouteOrders}
+                    onSend={handleSendRouteClick}
+                    onSendAfterExit={handleSendAfterExit}
+                    pendingSendRouteId={pendingSendRouteId}
+                    onFocusOnMap={focusMapOnRoute}
+                    onExiting={draftRoutes.length === 1 ? () => setDraftSectionExiting(true) : undefined}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
           {assignedRoutes.length > 0 ? (
             <div className="section">
               <div className="section__title">Назначенные</div>
@@ -654,7 +832,12 @@ function DashboardScreen({
                     now={now}
                     orderStageMin={orderStageMin}
                     routeStageMin={routeStageMin}
-                    onRevertToDraft={revertRouteToDraft}
+                    highlightedOrderIdFromMap={highlightedOrderIdFromMap}
+                    isJustAppeared={recentlySentRouteIds.includes(route.id)}
+                    onRevertToDraft={handleRevertClick}
+                    onRevertAfterExit={handleRevertAfterExit}
+                    pendingRevertRouteId={pendingRevertRouteId}
+                    onFocusOnMap={focusMapOnRoute}
                   />
                 ))}
               </div>
@@ -677,6 +860,8 @@ function DashboardScreen({
                     now={now}
                     orderStageMin={orderStageMin}
                     routeStageMin={routeStageMin}
+                    highlightedOrderIdFromMap={highlightedOrderIdFromMap}
+                    onFocusOnMap={focusMapOnRoute}
                   />
                 ))}
               </div>
@@ -720,8 +905,14 @@ function DashboardScreen({
           onClearFocus={() => {
             setMapFocusCoords(null)
             setMapFocusBounds(null)
+            setHighlightedOrderIdFromMap(null)
             // Не сбрасываем focusedRouteId при движении карты — маршрут остаётся до клика по заказу/другой карточке
           }}
+          onOrderAddToRoute={handleOrderAddToRouteFromMap}
+          orderIdsInRoute={orderIdsInRoute}
+          onMarkerClick={handleMarkerClick}
+          onMapBackgroundClick={handleMapBackgroundClick}
+          routeFlashTrigger={routeFlashTrigger}
         />
       </section>
     </div>
@@ -746,6 +937,11 @@ export function MapWidget({
   focusCoords,
   focusBounds,
   onClearFocus,
+  onOrderAddToRoute,
+  orderIdsInRoute,
+  onMarkerClick,
+  onMapBackgroundClick,
+  routeFlashTrigger,
 }: {
   orders: Record<string, Order>
   orderMarkers: OrderMarkerItem[]
@@ -755,6 +951,11 @@ export function MapWidget({
   focusCoords: { lat: number; lng: number } | null
   focusBounds: { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } } | null
   onClearFocus: () => void
+  onOrderAddToRoute?: (orderId: string) => void
+  orderIdsInRoute?: string[]
+  onMarkerClick?: (marker: OrderMarkerItem) => void
+  onMapBackgroundClick?: () => void
+  routeFlashTrigger?: number | null
 }) {
   void _orders
   return (
@@ -767,6 +968,11 @@ export function MapWidget({
         focusCoords={focusCoords}
         focusBounds={focusBounds}
         onClearFocus={onClearFocus}
+        onOrderAddToRoute={onOrderAddToRoute}
+        orderIdsInRoute={orderIdsInRoute}
+        onMarkerClick={onMarkerClick}
+        onMapBackgroundClick={onMapBackgroundClick}
+        routeFlashTrigger={routeFlashTrigger ?? null}
       />
     </div>
   )
@@ -779,6 +985,7 @@ function OrdersSection({
   now,
   orderStageMin,
   routeStageMin,
+  highlightedOrderIdFromMap,
   onOrderCardClick,
   onOrderAttachedToRoute,
 }: {
@@ -788,6 +995,7 @@ function OrdersSection({
   now: number
   orderStageMin: OrderStageMin
   routeStageMin: RouteStageMin
+  highlightedOrderIdFromMap?: string | null
   onOrderCardClick?: (coords: { lat: number; lng: number }) => void
   onOrderAttachedToRoute?: (routeId: string) => void
 }) {
@@ -804,6 +1012,7 @@ function OrdersSection({
             now={now}
             orderStageMin={orderStageMin}
             routeStageMin={routeStageMin}
+            highlightedFromMap={order.id === highlightedOrderIdFromMap}
             onFocusOnMap={onOrderCardClick}
             onOrderAttachedToRoute={onOrderAttachedToRoute}
           />
@@ -887,6 +1096,7 @@ function CardOrder({
   now,
   orderStageMin,
   routeStageMin,
+  highlightedFromMap,
   onFocusOnMap,
   onOrderAttachedToRoute,
 }: {
@@ -895,6 +1105,7 @@ function CardOrder({
   now: number
   orderStageMin: OrderStageMin
   routeStageMin: RouteStageMin
+  highlightedFromMap?: boolean
   onFocusOnMap?: (coords: { lat: number; lng: number }) => void
   onOrderAttachedToRoute?: (routeId: string) => void
 }) {
@@ -930,7 +1141,9 @@ function CardOrder({
         isDraggable ? ' card--draggable' : ''
       }${isDragging ? ' card--dragging' : ''}${
         slaStatus.isOverdue || isBehindSchedule ? ' card--overdue' : ''
-      }${isAssignedToDraft ? ' card--in-draft' : ''}${onFocusOnMap ? ' card--focus-on-map' : ''}`}
+      }${isAssignedToDraft ? ' card--in-draft' : ''}${onFocusOnMap ? ' card--focus-on-map' : ''}${
+        highlightedFromMap ? ' card--highlighted-from-map' : ''
+      }`}
       role={onFocusOnMap ? 'button' : undefined}
       tabIndex={onFocusOnMap ? 0 : undefined}
       onClick={handleFocusOnMap}
@@ -990,6 +1203,7 @@ type RouteDraftCardProps = {
   now: number
   orderStageMin: OrderStageMin
   routeStageMin: RouteStageMin
+  highlightedOrderIdFromMap?: string | null
   onDelete: (routeId: string) => void
   onDetachCourier: (routeId: string) => void
   onAttachCourier: (routeId: string, courierId: string) => void
@@ -997,6 +1211,16 @@ type RouteDraftCardProps = {
   onAttachOrder: (routeId: string, orderId: string) => void
   onReorderOrders: (routeId: string, fromIndex: number, toIndex: number) => void
   onSend: (routeId: string) => void
+  /** Вызывается после анимации скрытия при назначении маршрута (перед вызовом sendRoute не вызывается) */
+  onSendAfterExit?: (routeId: string) => void
+  /** Id маршрута, для которого запущена анимация «назначить» — карточка скрывается, затем вызывается onSendAfterExit */
+  pendingSendRouteId?: string | null
+  /** Показать маршрут на карте при клике по карточке (если в черновике есть заказы) */
+  onFocusOnMap?: (routeId: string) => void
+  /** Вызывается, когда карточка начинает анимацию скрытия (удаление последней в секции) */
+  onExiting?: () => void
+  /** Карточка только что появилась в «Новый маршрут» после нажатия «Редактировать» — проигрывается анимация появления */
+  isJustAppeared?: boolean
 }
 
 function RouteDraftCard({
@@ -1006,6 +1230,8 @@ function RouteDraftCard({
   now,
   orderStageMin,
   routeStageMin,
+  highlightedOrderIdFromMap,
+  isJustAppeared,
   onDelete,
   onDetachCourier,
   onDetachOrder,
@@ -1013,9 +1239,23 @@ function RouteDraftCard({
   onAttachOrder,
   onReorderOrders,
   onSend,
+  onSendAfterExit,
+  pendingSendRouteId,
+  onFocusOnMap,
+  onExiting,
 }: RouteDraftCardProps) {
-  const [isDragOver, setIsDragOver] = useState(false)
+  const [dragOverKind, setDragOverKind] = useState<'courier' | 'order' | null>(null)
+  const [reorderDropIndex, setReorderDropIndex] = useState<number | null>(null)
   const [isExiting, setIsExiting] = useState(false)
+  const exitingForSendRef = useRef(false)
+
+  useEffect(() => {
+    if (pendingSendRouteId === route.id) {
+      exitingForSendRef.current = true
+      setIsExiting(true)
+      onExiting?.()
+    }
+  }, [pendingSendRouteId, route.id, onExiting])
   const selectedCourier = route.courierId ? couriers.find((c) => c.id === route.courierId) : undefined
   const availableCouriers = couriers.filter((courier) => courier.id !== route.courierId)
   const selectedOrderIds = new Set(route.orderIds)
@@ -1048,10 +1288,11 @@ function RouteDraftCard({
     event.preventDefault()
     const payload = parseDndPayload(event)
     if (!payload || !canDropPayload(payload)) {
-      setIsDragOver(false)
+      setDragOverKind(null)
       return
     }
-    setIsDragOver(false)
+    setDragOverKind(null)
+    setReorderDropIndex(null)
     if (payload.kind === 'courier') {
       onAttachCourier(route.id, payload.id)
     }
@@ -1063,12 +1304,14 @@ function RouteDraftCard({
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
     if (!hasDndPayload(event)) return
-    if (isFull) return
-    const payload = parseDndPayload(event)
+    const payload = parseDndPayload(event) ?? lastDndPayload
     if (!payload || !canDropPayload(payload)) return
+    if (payload.kind === 'order' && isFull) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
-    if (!isDragOver) setIsDragOver(true)
+    if (payload.kind === 'courier' || payload.kind === 'order') {
+      setDragOverKind(payload.kind)
+    }
     lastDropRouteId = route.id
   }
 
@@ -1076,6 +1319,12 @@ function RouteDraftCard({
     if (!hasDndPayload(event)) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
+    const payload = parseDndPayload(event) ?? lastDndPayload
+    if (payload && (payload.kind === 'courier' || payload.kind === 'order') && canDropPayload(payload)) {
+      if (!(payload.kind === 'order' && isFull)) {
+        setDragOverKind(payload.kind)
+      }
+    }
   }
 
   const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
@@ -1083,7 +1332,8 @@ function RouteDraftCard({
     if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
       return
     }
-    setIsDragOver(false)
+    setDragOverKind(null)
+    setReorderDropIndex(null)
     if (lastDropRouteId === route.id) {
       lastDropRouteId = null
     }
@@ -1091,18 +1341,38 @@ function RouteDraftCard({
 
   const handleDeleteClick = () => {
     if (isExiting) return
+    exitingForSendRef.current = false
     setIsExiting(true)
+    onExiting?.()
   }
 
   const handleExitingAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
-    if (event.animationName === 'route-draft-disappear' && isExiting) {
+    if (event.animationName !== 'route-draft-disappear' || !isExiting) return
+    if (exitingForSendRef.current) {
+      onSendAfterExit?.(route.id)
+    } else {
       onDelete(route.id)
     }
   }
 
+  const canShowRouteOnMap = route.orderIds.length >= 1
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (e.target instanceof HTMLElement && e.target.closest('.route-draft__remove, .route-draft__select, .route-draft__action')) return
+    if (canShowRouteOnMap) onFocusOnMap?.(route.id)
+  }
+  const handleCardKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    if (canShowRouteOnMap) onFocusOnMap?.(route.id)
+  }
+
   return (
     <div
-      className={`card card--route card--route-empty${isExiting ? ' card--route-exiting' : ''}`}
+      className={`card card--route card--route-empty${isExiting ? ' card--route-exiting' : ''}${isJustAppeared ? ' card--draft-appearing' : ''}${dragOverKind === 'courier' ? ' card--drag-over-courier' : ''}${dragOverKind === 'order' ? ' card--drag-over-order' : ''}${canShowRouteOnMap && onFocusOnMap ? ' card--focus-on-map' : ''}`}
+      role={canShowRouteOnMap && onFocusOnMap ? 'button' : undefined}
+      tabIndex={canShowRouteOnMap && onFocusOnMap ? 0 : undefined}
+      onClick={canShowRouteOnMap && onFocusOnMap ? handleCardClick : undefined}
+      onKeyDown={canShowRouteOnMap && onFocusOnMap ? handleCardKeyDown : undefined}
       onDropCapture={handleDrop}
       onDragOver={handleDragOver}
       onDragOverCapture={handleDragOverCapture}
@@ -1170,7 +1440,7 @@ function RouteDraftCard({
               <div
                 className={`route-draft__order${
                   slaStatus.isOverdue || riskStatus.isBehindSchedule ? ' route-draft__order--overdue' : ''
-                }`}
+                }${orderId === highlightedOrderIdFromMap ? ' route-draft__order--highlighted-from-map' : ''}`}
                 draggable
                 onDragStart={(e) => {
                   setDndPayload(e, { kind: 'route-order', id: orderId, routeId: route.id })
@@ -1178,11 +1448,12 @@ function RouteDraftCard({
                   setDragImageAsCopy(e, e.currentTarget)
                 }}
                 onDragOver={(e) => {
-                  const payload = parseDndPayload(e)
+                  const payload = parseDndPayload(e) ?? lastDndPayload
                   if (payload && isRouteOrderPayload(payload) && payload.routeId === route.id) {
                     e.preventDefault()
                     e.dataTransfer.dropEffect = 'move'
                     e.stopPropagation()
+                    setReorderDropIndex(index)
                   }
                 }}
                 onDragLeave={() => {}}
@@ -1191,6 +1462,7 @@ function RouteDraftCard({
                   if (payload && isRouteOrderPayload(payload) && payload.routeId === route.id) {
                     e.preventDefault()
                     e.stopPropagation()
+                    setReorderDropIndex(null)
                     const fromIndex = route.orderIds.indexOf(payload.id)
                     if (fromIndex !== -1 && fromIndex !== index) {
                       onReorderOrders(route.id, fromIndex, index)
@@ -1229,13 +1501,17 @@ function RouteDraftCard({
                   : { isBehindSchedule: false }
                 const belowRed = nextSla.isOverdue || nextRisk.isBehindSchedule
                 const gradientId = `merger-${route.id}-${index}`
-                const gray = '#282A2E'
+                const gray = '#34373C'
                 const red = '#570F27'
                 const topColor = aboveRed ? red : gray
                 const bottomColor = belowRed ? red : gray
+                const isDropTarget = reorderDropIndex === index + 1
                 return (
-                  <div className="route-draft__merger" aria-hidden>
-                    <svg width={14} height={6} viewBox="0 0 14 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <div
+                    className={`route-draft__merger${isDropTarget ? ' route-draft__merger--drop-target' : ''}`}
+                    aria-hidden
+                  >
+                    <svg width={14} height={6} viewBox="0 0 14 6" fill="none" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
                       <defs>
                         <linearGradient id={gradientId} x1="7" y1="0" x2="7" y2="6" gradientUnits="userSpaceOnUse">
                           <stop stopColor={topColor} />
@@ -1302,7 +1578,12 @@ function RouteDeliveryCard({
   now,
   orderStageMin,
   routeStageMin,
+  highlightedOrderIdFromMap,
+  isJustAppeared,
   onRevertToDraft,
+  onRevertAfterExit,
+  pendingRevertRouteId,
+  onFocusOnMap,
 }: {
   route: Route
   courier?: Courier
@@ -1310,8 +1591,39 @@ function RouteDeliveryCard({
   now: number
   orderStageMin: OrderStageMin
   routeStageMin: RouteStageMin
+  highlightedOrderIdFromMap?: string | null
+  /** Карточка только что появилась в «Назначенные» после нажатия «Назначить» — проигрывается анимация появления */
+  isJustAppeared?: boolean
   onRevertToDraft?: (routeId: string) => void
+  /** Вызывается после анимации скрытия при нажатии «Редактировать» — затем вызывается revertRouteToDraft */
+  onRevertAfterExit?: (routeId: string) => void
+  /** Id маршрута, для которого запущена анимация «редактировать» — карточка скрывается, затем вызывается onRevertAfterExit */
+  pendingRevertRouteId?: string | null
+  onFocusOnMap?: (routeId: string) => void
 }) {
+  const [isExiting, setIsExiting] = useState(false)
+
+  useEffect(() => {
+    if (pendingRevertRouteId === route.id) {
+      setIsExiting(true)
+    }
+  }, [pendingRevertRouteId, route.id])
+
+  const handleRevertAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
+    if (event.animationName === 'delivery-card-exit' && isExiting) {
+      onRevertAfterExit?.(route.id)
+    }
+  }
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (e.target instanceof HTMLElement && e.target.closest('.delivery__edit-btn')) return
+    onFocusOnMap?.(route.id)
+  }
+  const handleCardKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+    e.preventDefault()
+    onFocusOnMap?.(route.id)
+  }
   const getElapsedMin = (startedAt?: number) =>
     startedAt ? Math.max(Math.floor((now - startedAt) / MINUTE_MS), 0) : 0
   const formatElapsedLabel = (label: string, startedAt?: number) => {
@@ -1333,12 +1645,22 @@ function RouteDeliveryCard({
   const showEditButton = onRevertToDraft && route.step.kind === 'pickup'
 
   return (
-    <div className="card card--delivery">
+    <div
+      className={`card card--delivery${onFocusOnMap ? ' card--focus-on-map' : ''}${isJustAppeared ? ' card--delivery-appearing' : ''}${isExiting ? ' card--delivery-exiting' : ''}`}
+      role={onFocusOnMap ? 'button' : undefined}
+      tabIndex={onFocusOnMap ? 0 : undefined}
+      onClick={onFocusOnMap ? handleCardClick : undefined}
+      onKeyDown={onFocusOnMap ? handleCardKeyDown : undefined}
+      onAnimationEnd={handleRevertAnimationEnd}
+    >
       {showEditButton ? (
         <button
           type="button"
           className="delivery__edit-btn"
-          onClick={() => onRevertToDraft(route.id)}
+          onClick={(e) => {
+            e.stopPropagation()
+            onRevertToDraft(route.id)
+          }}
           aria-label="Редактировать маршрут"
         >
           <img src={editIcon} alt="" width={16} height={16} aria-hidden />
@@ -1373,20 +1695,22 @@ function RouteDeliveryCard({
           const isLast = index === route.orderIds.length - 1
           let mergerNode: React.ReactNode = null
           if (!isLast) {
-            const aboveRed = slaStatus.isOverdue || riskStatus.isBehindSchedule
+            const aboveDelivered = order?.status === 'delivered'
+            const aboveRed = !aboveDelivered && (slaStatus.isOverdue || riskStatus.isBehindSchedule)
             const nextOrderId = route.orderIds[index + 1]
             const nextOrder = orders[nextOrderId]
+            const belowDelivered = nextOrder?.status === 'delivered'
             const nextSla = nextOrder ? getOrderSlaStatus(nextOrder, now) : { isOverdue: false }
             const nextRisk =
               nextOrder && orderStageMin && routeStageMin
                 ? getOrderRiskStatus(nextOrder, now, orderStageMin, routeStageMin)
                 : { isBehindSchedule: false }
-            const belowRed = nextSla.isOverdue || nextRisk.isBehindSchedule
+            const belowRed = !belowDelivered && (nextSla.isOverdue || nextRisk.isBehindSchedule)
             const gradientId = `delivery-merger-${route.id}-${index}`
-            const gray = '#282A2E'
+            const gray = '#34373C'
             const red = '#570F27'
-            const topColor = aboveRed ? red : gray
-            const bottomColor = belowRed ? red : gray
+            const topColor = aboveDelivered ? gray : aboveRed ? red : gray
+            const bottomColor = belowDelivered ? gray : belowRed ? red : gray
             mergerNode = (
               <div className="delivery__merger" aria-hidden>
                 <svg width={14} height={6} viewBox="0 0 14 6" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1408,7 +1732,9 @@ function RouteDeliveryCard({
                   order?.status !== 'delivered' && (slaStatus.isOverdue || riskStatus.isBehindSchedule)
                     ? ' delivery__order--overdue'
                     : ''
-                }${order?.status === 'delivered' ? ' delivery__order--delivered' : ''}`}
+                }${order?.status === 'delivered' ? ' delivery__order--delivered' : ''}${
+                  orderId === highlightedOrderIdFromMap ? ' delivery__order--highlighted-from-map' : ''
+                }`}
               >
                 <div className="delivery__order-main">
                   <div className="delivery__order-title">

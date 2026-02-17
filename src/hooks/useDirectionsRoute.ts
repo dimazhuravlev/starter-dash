@@ -266,10 +266,11 @@ export function useDirectionsRoute({
       if (cached) {
         if (isExtension) {
           const prevLastWaypoint = coords[coords.length - 2]
-          const splitIndex = findClosestPointIndex(cached.coordinates, prevLastWaypoint)
+          const coordsArr = cached.coordinates as [number, number][]
+          const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
           cancelAnimationRef.current = animateRouteLineExtension(
             map,
-            cached.coordinates,
+            coordsArr,
             splitIndex,
             ROUTE_ANIMATION_DURATION_MS,
           )
@@ -291,10 +292,11 @@ export function useDirectionsRoute({
           cacheRef.current[key] = geometry
           if (isExtension) {
             const prevLastWaypoint = coords[coords.length - 2]
-            const splitIndex = findClosestPointIndex(geometry.coordinates, prevLastWaypoint)
+            const coordsArr = geometry.coordinates as [number, number][]
+            const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
             cancelAnimationRef.current = animateRouteLineExtension(
               map,
-              geometry.coordinates,
+              coordsArr,
               splitIndex,
               ROUTE_ANIMATION_DURATION_MS,
             )

@@ -11,9 +11,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
+  height: 48px;
+  padding: 0 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: #131415;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -21,7 +21,7 @@
 
 .app-header__tabs {
   display: flex;
-  gap: 0px;
+  gap: 16px;
 }
 
 .app-header__burger {
@@ -42,6 +42,8 @@
 }
 
 .tab {
+  margin: 0;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -61,34 +63,146 @@
 .app-header__right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
 }
 
-.debug-toggle {
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: transparent;
-  color: var(--text-primary);
+/* Кнопка пользователя: форма как «Назначить», цвета как кнопка настроек (специфичность выше .route-draft__action) */
+.app-header__right .app-header__user-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
   border-radius: 40px;
-  padding: 8px 12px;
-  font-family: Pretendard;
-  font-size: 13px;
-  font-style: normal;
-  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  color: var(--text-primary);
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
   font-weight: 600;
-  line-height: 15px;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.03);
+  line-height: 14px;
 }
 
-.debug-toggle--active {
+.app-header__right .app-header__user-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+.app-header__right .app-header__user-btn:hover::before {
+  opacity: 1;
+}
+
+.app-header__right .app-header__user-btn--active {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.app-header__right .app-header__user-btn--active::before {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-header__right .app-header__user-btn--active:hover::before {
+  opacity: 1;
+}
+
+.app-header__user-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.app-header__user-name {
+  white-space: nowrap;
+}
+
+.app-subheader {
+  flex-shrink: 0;
+  height: 40px;
+  display: flex;
+  align-items: stretch;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-subheader__tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 24px;
+  overflow-x: auto;
+  padding: 0;
+}
+
+.app-subheader__tab {
+  position: relative;
+  margin: 0 0 -1px 0;
+  padding: 0 0 8px 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-subheader__tab-label {
+  display: inline-block;
+}
+
+.app-subheader__tab::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  z-index: -1;
+  transition: background-color 0.2s ease;
+}
+
+.app-subheader__tab:hover {
   color: var(--text-primary);
+}
+
+.app-subheader__tab:hover::before {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.app-subheader__tab--active {
+  color: #FFF;
+  border-bottom-color: currentColor;
+}
+
+.app-content__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
 .app-content {
   flex: 1;
-  padding: 16px;
+  padding: 8px;
+  padding-top: 16px;
   display: flex;
   overflow-x: auto;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .dashboard {
@@ -126,13 +240,12 @@
 .dashboard__resizer::before {
   content: '';
   position: absolute;
-  top: 8px;
-  bottom: 8px;
   left: 50%;
-  width: 2px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  top: 0;
+  bottom: 0;
+  width: 1px;
   transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.06);
   opacity: 0;
   transition: opacity 150ms ease;
 }
@@ -176,6 +289,8 @@
   flex-direction: column;
   gap: 12px;
   height: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .dashboard__left .dashboard__column {
@@ -245,7 +360,7 @@
 
   .app-header__tabs .tab {
     text-align: left;
-    padding: 10px 12px;
+    padding: 0;
     border-radius: 8px;
   }
 
@@ -462,6 +577,46 @@
   word-break: break-word;
 }
 
+/* Попап при клике на маркер заказа — «Добавить в маршрут» */
+.mapboxgl-popup.mapbox-marker-popup-container .mapboxgl-popup-tip {
+  display: none;
+}
+
+.mapboxgl-popup.mapbox-marker-popup-container .mapboxgl-popup-content {
+  padding: 0;
+  background: #282A2E;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.mapbox-marker-popup {
+  padding: 0;
+}
+
+.mapbox-marker-popup__btn {
+  display: block;
+  width: 100%;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #FFF;
+  font-family: Pretendard, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mapbox-marker-popup__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.mapbox-marker-popup__btn:focus {
+  outline: none;
+}
+
 .map-markers {
   position: absolute;
   inset: 0;
@@ -483,11 +638,58 @@ body.is-resizing {
   user-select: none;
 }
 
+/* Заголовок колонки — фиксируется при скролле */
+.dashboard__column > .column__title {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  background: var(--bg);
+  padding-bottom: 8px;
+  padding-left: 8px;
+}
+
 .column__title {
-  color: var(--text-primary);
-  font-size: 16px;
+  color: #FFF;
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
   font-weight: 600;
-  padding: 0;
+  line-height: 16px;
+  padding-left: 8px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.column__title--with-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Кнопка «Маршруты» — те же параметры, что у заголовков «Курьеры», «Заказы», «Доставка» */
+.column__title--button {
+  width: 100%;
+  text-align: left;
+  padding-left: 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  color: #FFF;
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.column__title--button:focus {
+  outline: none;
 }
 
 .column__header {
@@ -500,7 +702,7 @@ body.is-resizing {
 }
 
 .column__header .column__title {
-  padding: 0;
+  padding-left: 8px;
 }
 
 .column__header--routes {
@@ -517,6 +719,11 @@ body.is-resizing {
 
 .dashboard__column > .section:first-of-type {
   margin-top: 0;
+}
+
+/* Убираем лишний отступ сверху между заголовком колонки и первым блоком */
+.dashboard__column > .column__title + .section {
+  margin-top: -8px;
 }
 
 .section__title-row {
@@ -545,6 +752,13 @@ body.is-resizing {
   font-size: 13px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.4);
+  padding-left: 8px;
+}
+
+/* Секция «Новый маршрут» — та же анимация скрытия, что у карточки черновика */
+.section--route-exiting {
+  animation: route-draft-disappear 200ms ease forwards;
+  pointer-events: none;
 }
 
 .section__list {
@@ -563,6 +777,9 @@ body.is-resizing {
   background: var(--card-bg);
   border-radius: 12px;
   padding: 8px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -683,10 +900,61 @@ body.is-resizing {
   pointer-events: none;
 }
 
+.card--delivery-appearing {
+  animation: delivery-card-enter 250ms ease-out forwards;
+}
+
+.card--delivery-exiting {
+  animation: delivery-card-exit 200ms ease forwards;
+  pointer-events: none;
+}
+
+@keyframes delivery-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes delivery-card-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.card--draft-appearing {
+  opacity: 0;
+  animation: draft-card-enter 250ms ease-out both;
+}
+
+@keyframes draft-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .card--order {
   position: relative;
   overflow: hidden;
   gap: 0;
+}
+
+.card--order.card--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
 }
 
 .card--order .card__row {
@@ -728,7 +996,7 @@ body.is-resizing {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.3);
   opacity: 0;
   pointer-events: none;
 }
@@ -752,9 +1020,12 @@ body.is-resizing {
 
 @keyframes order-flash {
   0% {
+    opacity: 0;
+  }
+  20% {
     opacity: 1;
   }
-  83.333% {
+  80% {
     opacity: 1;
   }
   100% {
@@ -766,8 +1037,8 @@ body.is-resizing {
 .card--courier .chip {
   display: flex;
   align-self: flex-start;
-  height: 24px;
-  padding: 4px 6px;
+  height: 20px;
+  padding: 0 6px;
   align-items: center;
   gap: 2px;
   border-radius: 6px;
@@ -784,12 +1055,17 @@ body.is-resizing {
 
 .card--delivery .chip {
   align-self: flex-start;
-  padding: 2px 8px;
+  height: 20px;
+  padding: 0 8px;
   border-radius: 5px;
-  font-size: 13px;
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
   font-weight: 600;
+  line-height: 14px;
   color: rgba(255, 255, 255, 0.5);
   background: rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
 }
 
 .card__row {
@@ -820,6 +1096,9 @@ body.is-resizing {
   font-style: normal;
   font-weight: 600;
   line-height: 16px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
 }
 
 .card--courier .card__title,
@@ -867,7 +1146,7 @@ body.is-resizing {
 
 .sla-pill {
   display: flex;
-  height: 17px;
+  height: 16px;
   min-width: 20px;
   padding: 0 6px;
   justify-content: flex-end;
@@ -878,11 +1157,12 @@ body.is-resizing {
   color: var(--Happy-Green, #03ab00);
   text-align: center;
   font-family: Pretendard;
-  font-size: 13px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 600;
-  line-height: 15px;
+  line-height: 14px;
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .sla-pill--overdue {
@@ -892,6 +1172,12 @@ body.is-resizing {
 
 .sla-pill--done {
   justify-content: center;
+}
+
+/* В завершённом заказе в карточке Доставка капсула Done всегда зелёная */
+.delivery__order--delivered .sla-pill.sla-pill--done {
+  background: rgba(3, 171, 0, 0.1);
+  color: var(--Happy-Green, #03ab00);
 }
 
 .sla-pill__done-icon {
@@ -908,11 +1194,17 @@ body.is-resizing {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 8px;
+  height: 20px;
+  padding: 0 8px;
   border-radius: 6px;
+  font-family: Pretendard;
   font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-muted);
+  box-sizing: border-box;
 }
 
 .chip--good {
@@ -936,6 +1228,7 @@ body.is-resizing {
 }
 
 .chip--sla {
+  flex-shrink: 0;
   background: rgba(46, 204, 113, 0.18);
   border: 1px solid rgba(46, 204, 113, 0.4);
   color: #47d37a;
@@ -948,8 +1241,8 @@ body.is-resizing {
 .card--order .chip {
   display: flex;
   align-self: flex-start;
-  height: 24px;
-  padding: 4px 6px;
+  height: 20px;
+  padding: 0 6px;
   align-items: center;
   gap: 2px;
   border-radius: 6px;
@@ -965,6 +1258,7 @@ body.is-resizing {
 }
 
 .card--order .chip--sla {
+  flex-shrink: 0;
   background: rgba(46, 204, 113, 0.18);
   border: 1px solid rgba(46, 204, 113, 0.4);
   color: #47d37a;
@@ -1093,6 +1387,25 @@ body.is-resizing {
   color: hsla(0, 0%, 100%, 0.7);
 }
 
+/* При перетаскивании курьера на карточку маршрута — тот же эффект, что при ховере */
+.card--drag-over-courier .route-draft__header .route-draft__placeholder--empty .route-draft__plus-icon {
+  opacity: 0.7;
+}
+.card--drag-over-courier .route-draft__header .route-draft__placeholder--empty .route-draft__placeholder-text {
+  color: hsla(0, 0%, 100%, 0.7);
+}
+
+/* При перетаскивании заказа на карточку маршрута — тот же эффект, что при ховере */
+.card--drag-over-order .route-draft__orders .route-draft__placeholder--empty .route-draft__plus-icon {
+  opacity: 0.7;
+}
+.card--drag-over-order .route-draft__orders .route-draft__placeholder--empty .route-draft__placeholder-text {
+  color: hsla(0, 0%, 100%, 0.7);
+}
+.card--drag-over-order .route-draft__orders .route-draft__placeholder--empty {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .route-draft__header .route-draft__placeholder-text {
   font-size: 14px;
   line-height: 16px;
@@ -1142,24 +1455,49 @@ body.is-resizing {
   align-items: center;
   flex-shrink: 0;
   line-height: 0;
+  height: 6px;
+  transition: height 400ms ease;
 }
 
 .route-draft__merger img {
   display: block;
 }
 
+.route-draft__merger svg {
+  display: block;
+  height: 100%;
+  width: 14px;
+}
+
+/* При перетаскивании заказа — плавно растягиваем высоту merger (место вставки) */
+.route-draft__merger--drop-target {
+  height: 18px;
+}
+
 .route-draft__order {
   position: relative;
+  overflow: hidden;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: none;
-  font-size: 13px;
-  color: var(--text-primary);
+  background: #34373C;
+}
+
+.route-draft__order::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.route-draft__order--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
 }
 
 .route-draft__order .sla-pill {
@@ -1251,6 +1589,7 @@ body.is-resizing {
 }
 
 .route-draft__action--icon {
+  position: relative;
   display: flex;
   width: 32px;
   height: 32px;
@@ -1261,6 +1600,21 @@ body.is-resizing {
   border: 1px solid rgba(255, 255, 255, 0.04);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
   box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+}
+
+.route-draft__action--icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+.route-draft__action--icon:hover::before {
+  opacity: 1;
 }
 
 .route-draft__action--icon img {
@@ -1293,7 +1647,7 @@ body.is-resizing {
 .route-draft__action--primary {
   display: flex;
   height: 32px;
-  padding: 0 16px;
+  padding: 0 12px;
   justify-content: center;
   align-items: center;
   border-radius: 40px;
@@ -1306,6 +1660,7 @@ body.is-resizing {
   font-style: normal;
   font-weight: 600;
   line-height: 14px;
+  transition: opacity 200ms ease;
 }
 
 .route-draft__action:disabled {
@@ -1332,7 +1687,29 @@ body.is-resizing {
   cursor: pointer;
 }
 
-.delivery__label {
+/* Лейбл «Получение» и лейблы статусов «В пути», «Выдача» — как в карточках курьера и заказа */
+.card--delivery .delivery__label,
+.card--delivery .delivery__order-label {
+  display: flex;
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.40);
+  text-align: center;
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  box-sizing: border-box;
+}
+
+.card--delivery .delivery__label {
   margin-top: 0;
 }
 
@@ -1355,6 +1732,7 @@ body.is-resizing {
 }
 
 .delivery__order {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1363,7 +1741,21 @@ body.is-resizing {
   color: var(--text-primary);
   padding: 8px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
+  background: #34373C;
+}
+
+.delivery__order::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.delivery__order--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
 }
 
 .delivery__order-main {

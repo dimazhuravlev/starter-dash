@@ -95,13 +95,11 @@ const createOrder = (
   orderSlaOptionsMin: number[],
 ): Order => {
   const seed = ADDRESS_SEEDS[index % ADDRESS_SEEDS.length]
-  const duplicateIndex = Math.floor(index / ADDRESS_SEEDS.length)
-  const suffix = duplicateIndex > 0 ? `, кв. ${duplicateIndex + 1}` : ''
   const orderNumber = 30000 + index + Math.floor(Math.random() * 20000)
   const totalRub = 400 + Math.floor(Math.random() * 2600)
   return {
     id,
-    address: `${seed.address}${suffix}`,
+    address: seed.address,
     orderNumber,
     totalRub,
     coords: seed.coords,

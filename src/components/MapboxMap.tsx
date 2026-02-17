@@ -6,7 +6,7 @@ import restaurantIconUrl from '../assets/Restourant.svg'
 
 const DEFAULT_CENTER: [number, number] = [30.3125, 59.965]
 const DEFAULT_ZOOM = 13
-const FOCUS_ZOOM = 16
+const FOCUS_ZOOM = 15
 const FLY_DURATION_MS = 1200
 const FIT_BOUNDS_PADDING_PX = 80
 const FIT_BOUNDS_DURATION_MS = 800
@@ -39,6 +39,10 @@ export type MapMarkerItem = {
 export type MapFocusBounds = { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } }
 
 const ROUTE_PULSE_DURATION_MS = 1500
+/** Длительность одного цикла «пробега» свечения по линии (мс) */
+const ROUTE_GLOW_CYCLE_MS = 2500
+/** Длительность вспышки маршрута при «Назначить» (мс) */
+const ROUTE_FLASH_DURATION_MS = 800
 
 type MapboxMapProps = {
   markers?: MapMarkerItem[]
@@ -51,6 +55,16 @@ type MapboxMapProps = {
   focusCoords?: { lat: number; lng: number } | null
   focusBounds?: MapFocusBounds | null
   onClearFocus?: () => void
+  /** При клике на «Добавить в маршрут» в попапе маркера — добавить заказ в черновик (orderId) */
+  onOrderAddToRoute?: (orderId: string) => void
+  /** Id заказов, уже добавленных в какой-либо маршрут — для них тултип «Добавить в маршрут» не показывается */
+  orderIdsInRoute?: string[]
+  /** Вызывается при тапе/клике по маркеру заказа (для подсветки карточки заказа) */
+  onMarkerClick?: (marker: MapMarkerItem) => void
+  /** Вызывается при клике по карте (не по маркеру/попапу) — например для сброса подсветки карточки */
+  onMapBackgroundClick?: () => void
+  /** Триггер вспышки маршрута (например Date.now() при нажатии «Назначить») — один раз анимирует свечение линии */
+  routeFlashTrigger?: number | null
 }
 
 /** Убирает тип улицы в начале адреса (ул., наб., пер., пр. и т.д.) для подписи под маркером */
@@ -63,10 +77,14 @@ function shortenAddressForLabel(address: string): string {
     .trim()
 }
 
-function createMarkerElement(marker: MapMarkerItem): HTMLDivElement {
+function createMarkerElement(
+  marker: MapMarkerItem,
+  onMarkerClick?: (marker: MapMarkerItem) => void,
+): HTMLDivElement {
   const wrap = document.createElement('div')
   wrap.className = 'mapbox-order-marker'
   wrap.setAttribute('aria-hidden', 'true')
+  if (onMarkerClick) wrap.style.cursor = 'pointer'
   const dot = document.createElement('span')
   dot.className = 'mapbox-order-marker__dot'
   if (marker.isOverdue) dot.classList.add('mapbox-order-marker__dot--overdue')
@@ -81,6 +99,32 @@ function createMarkerElement(marker: MapMarkerItem): HTMLDivElement {
   label.textContent = shortenAddressForLabel(marker.address)
   wrap.appendChild(dot)
   wrap.appendChild(label)
+  if (onMarkerClick) {
+    wrap.addEventListener('click', (e) => {
+      e.stopPropagation()
+      onMarkerClick(marker)
+    })
+  }
+  return wrap
+}
+
+function createMarkerPopupContent(
+  orderId: string,
+  onAdd: (orderId: string) => void,
+  popup: mapboxgl.Popup,
+): HTMLDivElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'mapbox-marker-popup'
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'mapbox-marker-popup__btn'
+  btn.textContent = 'Добавить в маршрут'
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    onAdd(orderId)
+    popup.remove()
+  })
+  wrap.appendChild(btn)
   return wrap
 }
 
@@ -134,17 +178,33 @@ export function MapboxMap({
   focusCoords,
   focusBounds,
   onClearFocus,
+  onOrderAddToRoute,
+  orderIdsInRoute,
+  onMarkerClick,
+  onMapBackgroundClick,
+  routeFlashTrigger,
 }: MapboxMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const initializedRef = useRef(false)
   const markersRef = useRef<mapboxgl.Marker[]>([])
   const restaurantMarkerRef = useRef<mapboxgl.Marker | null>(null)
+  const popupRef = useRef<mapboxgl.Popup | null>(null)
+  const popupOpenedAtRef = useRef(0)
+  const initialBoundsFitDoneRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
   const onClearFocusRef = useRef(onClearFocus)
+  const onOrderAddToRouteRef = useRef(onOrderAddToRoute)
+  const onMapBackgroundClickRef = useRef(onMapBackgroundClick)
   useEffect(() => {
     onClearFocusRef.current = onClearFocus
   }, [onClearFocus])
+  useEffect(() => {
+    onOrderAddToRouteRef.current = onOrderAddToRoute
+  }, [onOrderAddToRoute])
+  useEffect(() => {
+    onMapBackgroundClickRef.current = onMapBackgroundClick
+  }, [onMapBackgroundClick])
 
   useEffect(() => {
     if (!mapboxToken) {
@@ -181,7 +241,22 @@ export function MapboxMap({
       if (!map.getSource('route')) {
         map.addSource('route', {
           type: 'geojson',
+          lineMetrics: true,
           data: emptyRouteGeoJSON(),
+        })
+      }
+      if (!map.getLayer('route-line-glow')) {
+        map.addLayer({
+          id: 'route-line-glow',
+          type: 'line',
+          source: 'route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#03AB00',
+            'line-width': 14,
+            'line-blur': 12,
+            'line-opacity': 0,
+          },
         })
       }
       if (!map.getLayer('route-line')) {
@@ -191,7 +266,21 @@ export function MapboxMap({
           source: 'route',
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': '#03AB00',
+            'line-gradient': [
+              'interpolate',
+              ['linear'],
+              ['%', ['+', ['-', ['line-progress'], 0], 1], 1],
+              0,
+              '#03AB00',
+              0.35,
+              '#03AB00',
+              0.5,
+              '#ffffff',
+              0.65,
+              '#03AB00',
+              1,
+              '#03AB00',
+            ],
             'line-width': 3,
             'line-dasharray': [1.5, 2],
           },
@@ -259,13 +348,85 @@ export function MapboxMap({
     }
   }, [focusBounds])
 
+  /* При первой загрузке карты — подогнать вид так, чтобы все заказы и ресторан влезали в область */
+  useEffect(() => {
+    if (!mapRef.current || !mapReady || initialBoundsFitDoneRef.current) return
+    const points: [number, number][] = []
+    markers.forEach((m) => points.push([m.lng, m.lat]))
+    if (restaurantCoords) points.push([restaurantCoords.lng, restaurantCoords.lat])
+    if (points.length < 2) {
+      initialBoundsFitDoneRef.current = true
+      return
+    }
+    const bounds = new mapboxgl.LngLatBounds()
+    points.forEach((p) => bounds.extend(p))
+    initialBoundsFitDoneRef.current = true
+    mapRef.current.fitBounds(bounds, {
+      padding: FIT_BOUNDS_PADDING_PX,
+      duration: FIT_BOUNDS_DURATION_MS,
+      maxZoom: 16,
+    })
+  }, [mapReady, markers, restaurantCoords])
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return
+    const map = mapRef.current
+    const popup = new mapboxgl.Popup({ closeButton: false, className: 'mapbox-marker-popup-container' })
+    popupRef.current = popup
+    const onMapClick = (e: mapboxgl.MapMouseEvent) => {
+      const target = e.originalEvent?.target
+      if (!(target instanceof Node)) return
+      const el = popup.getElement()
+      if (el && el.contains(target)) return
+      if (target instanceof Element && target.closest('.mapbox-order-marker')) return
+      if (Date.now() - popupOpenedAtRef.current < 200) return
+      popup.remove()
+      onMapBackgroundClickRef.current?.()
+    }
+    map.on('click', onMapClick)
+    return () => {
+      map.off('click', onMapClick)
+      popup.remove()
+      popupRef.current = null
+    }
+  }, [mapReady])
+
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
-    markers.forEach((marker) => {
-      const el = createMarkerElement(marker)
+    // Группируем по координатам, чтобы не рисовать несколько подписей в одной точке (наложение)
+    const key = (lng: number, lat: number) => `${lng.toFixed(6)},${lat.toFixed(6)}`
+    const byCoords = new Map<string, MapMarkerItem[]>()
+    for (const m of markers) {
+      const k = key(m.lng, m.lat)
+      const list = byCoords.get(k) ?? []
+      list.push(m)
+      byCoords.set(k, list)
+    }
+    const orderIdsInRouteSet = orderIdsInRoute ? new Set(orderIdsInRoute) : null
+    const openPopup = (m: MapMarkerItem) => {
+      const popup = popupRef.current
+      if (!popup || !onOrderAddToRouteRef.current) return
+      if (orderIdsInRouteSet?.has(m.id)) return
+      popup.setLngLat([m.lng, m.lat])
+      popup.setDOMContent(
+        createMarkerPopupContent(m.id, (orderId) => onOrderAddToRouteRef.current?.(orderId), popup),
+      )
+      popup.addTo(map)
+      popupOpenedAtRef.current = Date.now()
+    }
+    const handleMarkerClick = (m: MapMarkerItem) => {
+      if (onOrderAddToRoute && !orderIdsInRouteSet?.has(m.id)) openPopup(m)
+      onMarkerClick?.(m)
+    }
+    byCoords.forEach((group) => {
+      const marker = group[0]
+      const el = createMarkerElement(
+        marker,
+        onOrderAddToRoute || onMarkerClick ? handleMarkerClick : undefined,
+      )
       const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
         .setLngLat([marker.lng, marker.lat])
         .setOffset([0, MARKER_OFFSET_FULL])
@@ -280,7 +441,7 @@ export function MapboxMap({
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
     }
-  }, [markers, mapReady])
+  }, [markers, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick])
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
@@ -337,6 +498,66 @@ export function MapboxMap({
       map.setPaintProperty('route-line', 'line-opacity', 1)
     }
   }, [mapReady, isRouteDraft])
+
+  // Вспышка маршрута при «Назначить»: один раз анимируем свечение (opacity 0 → 0.8 → 0)
+  useEffect(() => {
+    if (
+      routeFlashTrigger == null ||
+      !mapRef.current ||
+      !mapReady ||
+      !mapRef.current.getLayer('route-line-glow')
+    )
+      return
+    const map = mapRef.current
+    const startTime = performance.now()
+    let rafId: number
+    const tick = () => {
+      const elapsed = performance.now() - startTime
+      if (elapsed >= ROUTE_FLASH_DURATION_MS) {
+        map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+        return
+      }
+      const t = elapsed / ROUTE_FLASH_DURATION_MS
+      const opacity = t < 0.35 ? (t / 0.35) * 0.6 : 0.6 * (1 - (t - 0.35) / 0.65)
+      map.setPaintProperty('route-line-glow', 'line-opacity', opacity)
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(rafId)
+      if (map.getLayer('route-line-glow')) map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+    }
+  }, [mapReady, routeFlashTrigger])
+
+  // Анимация «пробегающего» свечения по пунктирной линии (градиент зелёный–белый–зелёный)
+  useEffect(() => {
+    if (!mapRef.current || !mapReady || !mapRef.current.getLayer('route-line')) return
+    const map = mapRef.current
+    const startTime = performance.now()
+    let rafId: number
+    const tick = () => {
+      const elapsed = performance.now() - startTime
+      const phase = (elapsed / ROUTE_GLOW_CYCLE_MS) % 1
+      map.setPaintProperty('route-line', 'line-gradient', [
+        'interpolate',
+        ['linear'],
+        ['%', ['+', ['-', ['line-progress'], phase], 1], 1],
+        0,
+        '#03AB00',
+        0.45,
+        '#03AB00',
+        0.5,
+        '#B8FFB7',
+        0.55,
+        '#03AB00',
+        1,
+        '#03AB00',
+      ])
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [mapReady])
 
   if (!mapboxToken) {
     return (
