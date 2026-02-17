@@ -15,7 +15,16 @@ const ZOOM_COMPACT_THRESHOLD = 12
 const MARKER_OFFSET_FULL = 10
 const MARKER_OFFSET_COMPACT = 6
 
-const mapboxToken = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim()
+function getMapboxToken(): string | undefined {
+  const fromEnv = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim()
+  if (fromEnv) return fromEnv
+  if (typeof window !== 'undefined') {
+    const fromWindow = (window as { __MAPBOX_ACCESS_TOKEN__?: string }).__MAPBOX_ACCESS_TOKEN__?.trim()
+    if (fromWindow) return fromWindow
+  }
+  return undefined
+}
+const mapboxToken = getMapboxToken()
 
 export type MapMarkerItem = {
   id: string
@@ -332,7 +341,10 @@ export function MapboxMap({
   if (!mapboxToken) {
     return (
       <div className="mapbox-map-container mapbox-map-placeholder" aria-label="Map">
-        <p>Добавьте <code>VITE_MAPBOX_ACCESS_TOKEN</code> в файл <code>.env</code></p>
+        <p>Для карты нужен Mapbox-токен.</p>
+        <p className="mapbox-map-placeholder-hint">
+          Локально: <code>VITE_MAPBOX_ACCESS_TOKEN</code> в <code>.env</code>. На деплое: переменная окружения при сборке или <code>window.__MAPBOX_ACCESS_TOKEN__</code> в HTML до загрузки приложения.
+        </p>
         <p className="mapbox-map-placeholder-hint">
           <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener noreferrer">
             Получить токен →

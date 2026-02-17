@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "build:host": "npm run set-mapbox-token && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "geocode": "node scripts/geocode-addresses.js"
+    "geocode": "node scripts/geocode-addresses.js",
+    "set-mapbox-token": "node scripts/set-mapbox-token.mjs"
   },
   "dependencies": {
     "mapbox-gl": "^3.18.1",
