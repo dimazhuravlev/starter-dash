@@ -57,3 +57,6 @@ export type Route = {
   step: RouteStep
   returningStartedAt?: number
 }
+
+/** Координаты ресторана — точки, из которой доставляются заказы */
+export const RESTAURANT_COORDS = { lat: 59.9559111, lng: 30.2985614 } as const

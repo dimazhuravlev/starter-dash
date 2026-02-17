@@ -7,9 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "geocode": "node scripts/geocode-addresses.js"
   },
   "dependencies": {
+    "mapbox-gl": "^3.18.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "zustand": "^5.0.11"
