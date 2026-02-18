@@ -211,6 +211,8 @@ type UseDirectionsRouteParams = {
   mapReady: boolean
   routePathCoords: RoutePathCoord[] | null
   accessToken: string | undefined
+  /** При false линия маршрута показывается сразу, без анимации прорисовки (для назначенных/активных маршрутов) */
+  animateLine?: boolean
 }
 
 /**
@@ -222,6 +224,7 @@ export function useDirectionsRoute({
   mapReady,
   routePathCoords,
   accessToken,
+  animateLine = true,
 }: UseDirectionsRouteParams): void {
   const cacheRef = useRef<Record<string, GeoJSON.LineString>>({})
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -264,35 +267,10 @@ export function useDirectionsRoute({
       cancelAnimationRef.current = null
       const cached = cacheRef.current[key]
       if (cached) {
-        if (isExtension) {
-          const prevLastWaypoint = coords[coords.length - 2]
-          const coordsArr = cached.coordinates as [number, number][]
-          const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
-          cancelAnimationRef.current = animateRouteLineExtension(
-            map,
-            coordsArr,
-            splitIndex,
-            ROUTE_ANIMATION_DURATION_MS,
-          )
-        } else {
-          cancelAnimationRef.current = animateRouteLine(
-            map,
-            cached,
-            ROUTE_ANIMATION_DURATION_MS,
-          )
-        }
-        lastCoordsKeyRef.current = key
-        lastCoordsRef.current = coords
-        fitMapToRoute(map, coords)
-        return
-      }
-      try {
-        const geometry = await fetchDirections(accessToken, coords)
-        if (geometry) {
-          cacheRef.current[key] = geometry
+        if (animateLine) {
           if (isExtension) {
             const prevLastWaypoint = coords[coords.length - 2]
-            const coordsArr = geometry.coordinates as [number, number][]
+            const coordsArr = cached.coordinates as [number, number][]
             const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
             cancelAnimationRef.current = animateRouteLineExtension(
               map,
@@ -303,9 +281,42 @@ export function useDirectionsRoute({
           } else {
             cancelAnimationRef.current = animateRouteLine(
               map,
-              geometry,
+              cached,
               ROUTE_ANIMATION_DURATION_MS,
             )
+          }
+        } else {
+          setRouteSourceData(map, cached)
+        }
+        lastCoordsKeyRef.current = key
+        lastCoordsRef.current = coords
+        fitMapToRoute(map, coords)
+        return
+      }
+      try {
+        const geometry = await fetchDirections(accessToken, coords)
+        if (geometry) {
+          cacheRef.current[key] = geometry
+          if (animateLine) {
+            if (isExtension) {
+              const prevLastWaypoint = coords[coords.length - 2]
+              const coordsArr = geometry.coordinates as [number, number][]
+              const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
+              cancelAnimationRef.current = animateRouteLineExtension(
+                map,
+                coordsArr,
+                splitIndex,
+                ROUTE_ANIMATION_DURATION_MS,
+              )
+            } else {
+              cancelAnimationRef.current = animateRouteLine(
+                map,
+                geometry,
+                ROUTE_ANIMATION_DURATION_MS,
+              )
+            }
+          } else {
+            setRouteSourceData(map, geometry)
           }
           lastCoordsKeyRef.current = key
           lastCoordsRef.current = coords
@@ -330,7 +341,7 @@ export function useDirectionsRoute({
       cancelAnimationRef.current?.()
       cancelAnimationRef.current = null
     }
-  }, [mapRef, mapReady, routePathKey, accessToken])
+  }, [mapRef, mapReady, routePathKey, accessToken, animateLine])
 }
 
 export { emptyRouteGeoJSON, setRouteSourceData }

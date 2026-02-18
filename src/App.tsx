@@ -287,6 +287,11 @@ function App() {
     return () => window.clearInterval(interval)
   }, [isRunning, speed, tick])
 
+  // Сброс классов body при переключении экрана/таба (если остались is-dragging/is-resizing после днд или ресайза)
+  useEffect(() => {
+    document.body.classList.remove('is-dragging', 'is-resizing')
+  }, [screen, activeRestaurantTab])
+
   const isDebug = screen === 'debug'
 
   return (
@@ -352,6 +357,7 @@ function App() {
         {screen === 'dashboard' ? (
           activeRestaurantTab === 0 ? (
           <DashboardScreen
+            key="dashboard"
             orders={orders}
             couriers={couriers}
             routes={routes}
@@ -369,12 +375,13 @@ function App() {
             routeStageMin={routeStageMin}
           />
           ) : (
-            <div className="app-content__empty">
+            <div key={`tab-${activeRestaurantTab}`} className="app-content__empty">
               Заказы {restaurantTabs[activeRestaurantTab].label}, {restaurantTabs[activeRestaurantTab].count}
             </div>
           )
         ) : (
           <DebugPanelScreen
+            key="debug"
             now={now}
             isRunning={isRunning}
             speed={speed}
@@ -574,12 +581,14 @@ function DashboardScreen({
       .filter(({ list }) => list.length > 0)
   }, [courierList, routes, now])
 
-  /** Маршрут всегда строится от ресторана: ресторан → заказ 1 → заказ 2 → заказ 3 */
+  /** Маршрут всегда строится от ресторана: ресторан → заказ 1 → заказ 2 → заказ 3. Скрывается, когда все заказы в маршруте доставлены. */
   const routePathCoords = useMemo((): { lng: number; lat: number }[] | null => {
     if (!focusedRouteId) return null
     const route = routes[focusedRouteId]
     const orderIds = route?.orderIds ?? []
     if (orderIds.length < 1) return null
+    const allDelivered = orderIds.every((id) => orders[id]?.status === 'delivered')
+    if (allDelivered) return null
     const orderCoords = orderIds
       .map((id) => orders[id]?.coords)
       .filter((c): c is { lat: number; lng: number } => c != null)
@@ -588,27 +597,52 @@ function DashboardScreen({
     return fromRestaurant.length >= 2 ? fromRestaurant : null
   }, [focusedRouteId, orders, routes])
 
+  /** Id заказов в назначенных/активных маршрутах (sent) — их маркеры гасим, если маршрут не выделен */
+  const orderIdsInAssignedOrActiveRoute = useMemo(() => {
+    const ids: string[] = []
+    Object.values(routes).forEach((r) => {
+      if (r.status === 'sent') r.orderIds.forEach((id) => ids.push(id))
+    })
+    return ids
+  }, [routes])
+
+  /** Маркеры заказов: не доставленные всегда; доставленные — только если в маршруте, где есть ещё не доставленные (зачеркнутые в карточке). После доставки последнего заказа маршрута маркеры этого маршрута не показываются. */
   const orderMarkers = useMemo(
     () => {
       const routeOrderIds = focusedRouteId ? routes[focusedRouteId]?.orderIds ?? [] : []
       return orderList
-        .filter((o) => o.status !== 'delivered')
+        .filter((o) => {
+          if (o.status !== 'delivered') return true
+          if (!o.routeId) return false
+          const route = routes[o.routeId]
+          if (!route) return false
+          const routeHasNonDelivered = route.orderIds.some((id) => orders[id]?.status !== 'delivered')
+          return routeHasNonDelivered
+        })
         .map((o) => {
+          const isDelivered = o.status === 'delivered'
+          const slaStatus = getOrderSlaStatus(o, now)
           const idx = routeOrderIds.indexOf(o.id)
           const routePosition = idx >= 0 ? idx + 1 : undefined
+          const inAssignedOrActive = orderIdsInAssignedOrActiveRoute.includes(o.id)
+          const inFocusedRoute = routeOrderIds.includes(o.id)
           return {
             id: o.id,
             lng: o.coords.lng,
             lat: o.coords.lat,
             address: o.address,
             isOverdue:
-              getOrderSlaStatus(o, now).isOverdue ||
-              getOrderRiskStatus(o, now, orderStageMin, routeStageMin).isBehindSchedule,
+              !isDelivered &&
+              (slaStatus.isOverdue ||
+                getOrderRiskStatus(o, now, orderStageMin, routeStageMin).isBehindSchedule),
+            slaLabel: slaStatus.label,
             routePosition,
+            isDelivered,
+            isDimmed: inAssignedOrActive && !inFocusedRoute,
           }
         })
     },
-    [orderList, now, orderStageMin, routeStageMin, focusedRouteId, routes],
+    [orderList, now, orderStageMin, routeStageMin, focusedRouteId, routes, orders, orderIdsInAssignedOrActiveRoute],
   )
 
   const courierMarkers = useMemo<CourierMarkerItem[]>(
@@ -628,10 +662,11 @@ function DashboardScreen({
   }, [deleteRouteDraft])
 
   const focusMapOnRoute = useCallback((routeId: string) => {
-    if (mapViewMode === 'none') return
     const state = useDashboardStore.getState()
     const route = state.routes[routeId]
     if (!route?.orderIds.length) return
+    if (mapViewMode === 'none') setMapViewMode('half')
+    setHighlightedOrderIdFromMap(null)
     setFocusedRouteId(routeId)
     const orderCoords = route.orderIds
       .map((id) => state.orders[id]?.coords)
@@ -649,21 +684,23 @@ function DashboardScreen({
 
   const handleMarkerClick = useCallback(
     (marker: { id: string }) => {
-      if (highlightedOrderIdFromMapRef.current === marker.id) {
-        setHighlightedOrderIdFromMap(null)
-        requestAnimationFrame(() => {
-          setHighlightedOrderIdFromMap(marker.id)
-        })
-      } else {
-        setHighlightedOrderIdFromMap(marker.id)
-      }
       const state = useDashboardStore.getState()
       const routeContainingOrder = Object.values(state.routes).find((r) => r.orderIds.includes(marker.id))
+
       if (routeContainingOrder) {
         focusMapOnRoute(routeContainingOrder.id)
+        setHighlightedOrderIdFromMap(marker.id)
       } else {
         setFocusedRouteId(null)
         setMapFocusBounds(null)
+        if (highlightedOrderIdFromMapRef.current === marker.id) {
+          setHighlightedOrderIdFromMap(null)
+          requestAnimationFrame(() => {
+            setHighlightedOrderIdFromMap(marker.id)
+          })
+        } else {
+          setHighlightedOrderIdFromMap(marker.id)
+        }
       }
     },
     [focusMapOnRoute],
@@ -676,15 +713,28 @@ function DashboardScreen({
       route &&
       (route.status === 'draft' ||
         (route.status === 'sent' && route.step.kind !== 'returning'))
-    if (!routeCardVisible) {
+    const allOrdersDelivered =
+      route && route.orderIds.length > 0 && route.orderIds.every((id) => orders[id]?.status === 'delivered')
+    if (!routeCardVisible || allOrdersDelivered) {
       setFocusedRouteId(null)
       setMapFocusBounds(null)
     }
-  }, [focusedRouteId, routes])
+  }, [focusedRouteId, routes, orders])
 
+  /** Клик по пустому месту на карте — скрыть маршрут и подсветку */
   const handleMapBackgroundClick = useCallback(() => {
     setHighlightedOrderIdFromMap(null)
     setHighlightedCourierIdFromMap(null)
+    setFocusedRouteId(null)
+    setMapFocusBounds(null)
+  }, [])
+
+  /** Клик по пустому месту левой панели (вне карты и не по карточке) — скрыть маршрут на карте. Не сбрасываем при клике по карточке заказа/маршрута/курьера, чтобы можно было нажать на карточку и увидеть маршрут. */
+  const handleLeftPanelClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target instanceof Element ? e.target : null
+    if (target?.closest('.card') || target?.closest('button') || target?.closest('a')) return
+    setFocusedRouteId(null)
+    setMapFocusBounds(null)
   }, [])
 
   const handleCourierMarkerClick = useCallback((marker: CourierMarkerItem) => {
@@ -739,6 +789,16 @@ function DashboardScreen({
   useLayoutEffect(() => {
     syncLeftWrapperScroll()
   }, [rightColumnWidth, dashboardWidth, syncLeftWrapperScroll])
+
+  // После закрытия оверлея карты на узком экране принудительно пересчитываем layout левой колонки
+  // (она восстанавливается из position:absolute с нулевым размером), чтобы карточки отображались корректно
+  useLayoutEffect(() => {
+    if (isMobileMapOpen) return
+    const wrapper = leftWrapperRef.current
+    if (!wrapper) return
+    void wrapper.offsetWidth // reflow
+    syncLeftWrapperScroll()
+  }, [isMobileMapOpen, syncLeftWrapperScroll])
 
   useEffect(() => {
     const dashboard = dashboardRef.current
@@ -878,7 +938,7 @@ function DashboardScreen({
         </div>
       ) : null}
       <div className="dashboard__left-wrapper" ref={leftWrapperRef}>
-        <div className="dashboard__left">
+        <div className="dashboard__left" onClick={handleLeftPanelClick} role="presentation">
         <section className="dashboard__column">
           <div className="column__title">Курьеры{courierList.length > 0 && <span className="column__title-count">{courierList.length}</span>}</div>
           {courierSections.map(({ title, list }) => (
@@ -1186,6 +1246,8 @@ export type OrderMarkerItem = {
   lat: number
   address: string
   isOverdue: boolean
+  /** Текст остатка времени (минуты), как в карточке заказа */
+  slaLabel: string
   routePosition?: number
 }
 
@@ -1344,7 +1406,7 @@ function CardCourier({
   const freeMinutes = Math.max(Math.floor((now - (courier.freeSince ?? now)) / MINUTE_MS), 0)
   const label =
     courier.status === 'free'
-      ? `${freeMinutes} мин`
+      ? (freeMinutes === 0 ? 'Только что' : `${freeMinutes} мин`)
       : `Вернётся через ${remainingMin} мин`
   const isAssignedToDraft = Object.values(routes).some(
     (routeItem) => routeItem.status === 'draft' && routeItem.courierId === courier.id,

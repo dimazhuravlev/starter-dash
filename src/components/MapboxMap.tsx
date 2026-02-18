@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDirectionsRoute, emptyRouteGeoJSON, type RoutePathCoord } from '../hooks/useDirectionsRoute'
@@ -21,7 +21,7 @@ const FIT_BOUNDS_PADDING_PX = 80
 const FIT_BOUNDS_DURATION_MS = 800
 /** При зуме ≤ этого значения показываем только точку 12px без подписи */
 const ZOOM_COMPACT_THRESHOLD = 12
-const MARKER_OFFSET_FULL = 10
+const MARKER_OFFSET_FULL = 9
 const MARKER_OFFSET_COMPACT = 6
 
 function getMapboxToken(): string | undefined {
@@ -41,8 +41,14 @@ export type MapMarkerItem = {
   lat: number
   address: string
   isOverdue: boolean
-  /** Порядковый номер в маршруте (1, 2, 3) — показывается внутри круга */
+  /** Текст остатка времени (минуты), как в карточке заказа: "15" или "+5" при просрочке */
+  slaLabel: string
+  /** Порядковый номер в маршруте (1, 2, 3) — не отображается в капсуле, оставлено для совместимости */
   routePosition?: number
+  /** Заказ доставлен — в капсуле показывается иконка Done (как в карточке доставки) */
+  isDelivered?: boolean
+  /** Заказ в назначенном/активном маршруте, маршрут не выделен — показывать маркер с opacity 0.5 */
+  isDimmed?: boolean
 }
 
 /** Маркер курьера на карте: иконка типа (пеший/вело/авто) 16px зелёный + подпись фамилии */
@@ -108,27 +114,34 @@ function shortenAddressForLabel(address: string): string {
     .trim()
 }
 
+const DONE_ICON_SVG =
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" class="mapbox-order-marker__done-icon" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill="#FFF"/></svg>'
+
 function createMarkerElement(
   marker: MapMarkerItem,
   onMarkerClick?: (marker: MapMarkerItem) => void,
 ): HTMLDivElement {
   const wrap = document.createElement('div')
-  wrap.className = 'mapbox-order-marker'
+  wrap.className = 'mapbox-order-marker' + (marker.isDimmed ? ' mapbox-order-marker--dimmed' : '')
   wrap.setAttribute('aria-hidden', 'true')
+  wrap.setAttribute('data-order-id', marker.id)
   if (onMarkerClick) wrap.style.cursor = 'pointer'
-  const dot = document.createElement('span')
-  dot.className = 'mapbox-order-marker__dot'
-  if (marker.isOverdue) dot.classList.add('mapbox-order-marker__dot--overdue')
-  if (marker.routePosition != null) {
-    const num = document.createElement('span')
-    num.className = 'mapbox-order-marker__num'
-    num.textContent = String(marker.routePosition)
-    dot.appendChild(num)
+  const pill = document.createElement('span')
+  pill.className = 'mapbox-order-marker__pill'
+  if (marker.isDelivered) {
+    pill.classList.add('mapbox-order-marker__pill--done')
+    pill.insertAdjacentHTML('beforeend', DONE_ICON_SVG)
+  } else {
+    if (marker.isOverdue) pill.classList.add('mapbox-order-marker__pill--overdue')
+    const pillNum = document.createElement('span')
+    pillNum.className = 'mapbox-order-marker__pill-num'
+    pillNum.textContent = marker.slaLabel
+    pill.appendChild(pillNum)
   }
   const label = document.createElement('span')
   label.className = 'mapbox-order-marker__label'
   label.textContent = shortenAddressForLabel(marker.address)
-  wrap.appendChild(dot)
+  wrap.appendChild(pill)
   wrap.appendChild(label)
   if (onMarkerClick) {
     wrap.addEventListener('click', (e) => {
@@ -308,6 +321,7 @@ export function MapboxMap({
   const restaurantMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const popupOpenedAtRef = useRef(0)
+  const popupMarkerIdRef = useRef<string | null>(null)
   const [mapReady, setMapReady] = useState(false)
   const [mapContentHidden, setMapContentHidden] = useState(false)
   const [mapViewModeInternal, setMapViewModeInternal] = useState<MapViewMode>('half')
@@ -484,8 +498,18 @@ export function MapboxMap({
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
+    const container = containerRef.current
     const popup = new mapboxgl.Popup({ closeButton: false, className: 'mapbox-marker-popup-container' })
     popupRef.current = popup
+
+    const closePopupIfOpen = () => {
+      if (popupRef.current) {
+        popupRef.current.remove()
+        popupMarkerIdRef.current = null
+        onMapBackgroundClickRef.current?.()
+      }
+    }
+
     const onMapClick = (e: mapboxgl.MapMouseEvent) => {
       const target = e.originalEvent?.target
       if (!(target instanceof Node)) return
@@ -494,14 +518,26 @@ export function MapboxMap({
       if (target instanceof Element && target.closest('.mapbox-order-marker')) return
       if (target instanceof Element && target.closest('.mapbox-courier-marker')) return
       if (Date.now() - popupOpenedAtRef.current < 200) return
-      popup.remove()
-      onMapBackgroundClickRef.current?.()
+      closePopupIfOpen()
     }
     map.on('click', onMapClick)
+
+    const onDragStart = () => closePopupIfOpen()
+    map.on('dragstart', onDragStart)
+
+    const onClickOutsideMap = (e: MouseEvent) => {
+      const target = e.target
+      if (!(target instanceof Node) || !container?.contains(target)) closePopupIfOpen()
+    }
+    document.addEventListener('click', onClickOutsideMap)
+
     return () => {
       map.off('click', onMapClick)
+      map.off('dragstart', onDragStart)
+      document.removeEventListener('click', onClickOutsideMap)
       popup.remove()
       popupRef.current = null
+      popupMarkerIdRef.current = null
     }
   }, [mapReady])
 
@@ -523,16 +559,27 @@ export function MapboxMap({
     const openPopup = (m: MapMarkerItem) => {
       const popup = popupRef.current
       if (!popup || !onOrderAddToRouteRef.current) return
-      if (orderIdsInRouteSet?.has(m.id)) return
+      if (orderIdsInRouteSet?.has(m.id) || m.isDelivered) return
       popup.setLngLat([m.lng, m.lat])
       popup.setDOMContent(
-        createMarkerPopupContent(m.id, (orderId) => onOrderAddToRouteRef.current?.(orderId), popup),
+        createMarkerPopupContent(
+          m.id,
+          (orderId) => onOrderAddToRouteRef.current?.(orderId),
+          popup,
+        ),
       )
       popup.addTo(map)
       popupOpenedAtRef.current = Date.now()
+      popupMarkerIdRef.current = m.id
     }
     const handleMarkerClick = (m: MapMarkerItem) => {
-      if (onOrderAddToRoute && !orderIdsInRouteSet?.has(m.id)) openPopup(m)
+      if (popupRef.current && popupMarkerIdRef.current === m.id) {
+        popupRef.current.remove()
+        popupMarkerIdRef.current = null
+        onMapBackgroundClickRef.current?.()
+        return
+      }
+      if (onOrderAddToRoute && !orderIdsInRouteSet?.has(m.id) && !m.isDelivered) openPopup(m)
       onMarkerClick?.(m)
     }
     byCoords.forEach((group) => {
@@ -553,6 +600,23 @@ export function MapboxMap({
       markersRef.current = []
     }
   }, [markers, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick])
+
+  /** Синхронизируем класс --dimmed на уже отрисованных маркерах (при смене выделенного маршрута) */
+  const dimmedStateKey = useMemo(
+    () => markers.map((m) => `${m.id}:${m.isDimmed ? 1 : 0}`).join(','),
+    [markers],
+  )
+  useEffect(() => {
+    if (!mapReady || !markers.length) return
+    const idToDimmed = new Map(markers.map((m) => [m.id, !!m.isDimmed]))
+    markersRef.current.forEach((mapMarker) => {
+      const el = mapMarker.getElement()
+      const orderId = el?.getAttribute('data-order-id')
+      if (orderId == null) return
+      const dimmed = idToDimmed.get(orderId) ?? false
+      el?.classList.toggle('mapbox-order-marker--dimmed', dimmed)
+    })
+  }, [mapReady, markers, dimmedStateKey])
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
@@ -614,6 +678,7 @@ export function MapboxMap({
     mapReady,
     routePathCoords: routePathCoords ?? null,
     accessToken: mapboxToken ?? undefined,
+    animateLine: isRouteDraft,
   })
 
   useEffect(() => {
@@ -669,7 +734,7 @@ export function MapboxMap({
     }
   }, [mapReady, routeFlashTrigger])
 
-  // Анимация «пробегающего» свечения по пунктирной линии (градиент зелёный–белый–зелёный)
+  // Анимация движущегося свечения в градиенте линии маршрута (всегда).
   useEffect(() => {
     if (!mapRef.current || !mapReady || !mapRef.current.getLayer('route-line')) return
     const map = mapRef.current
