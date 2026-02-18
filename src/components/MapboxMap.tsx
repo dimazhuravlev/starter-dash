@@ -3,6 +3,10 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDirectionsRoute, emptyRouteGeoJSON, type RoutePathCoord } from '../hooks/useDirectionsRoute'
 import restaurantIconUrl from '../assets/Restourant.svg'
+import fullMapIconUrl from '../assets/Full map.svg'
+import halfMapIconUrl from '../assets/Half map.svg'
+import noMapIconUrl from '../assets/No map.svg'
+import arrowLeftIconUrl from '../assets/Arrow-left.svg'
 
 const DEFAULT_CENTER: [number, number] = [30.3125, 59.965]
 const DEFAULT_ZOOM = 13
@@ -65,7 +69,13 @@ type MapboxMapProps = {
   onMapBackgroundClick?: () => void
   /** Триггер вспышки маршрута (например Date.now() при нажатии «Назначить») — один раз анимирует свечение линии */
   routeFlashTrigger?: number | null
+  /** Режим отображения карты: полная / половина / скрыта */
+  mapViewMode?: MapViewMode
+  /** Вызывается при смене режима карты */
+  onMapViewModeChange?: (mode: MapViewMode) => void
 }
+
+export type MapViewMode = 'full' | 'half' | 'none'
 
 /** Убирает тип улицы в начале адреса (ул., наб., пер., пр. и т.д.) для подписи под маркером */
 function shortenAddressForLabel(address: string): string {
@@ -170,6 +180,12 @@ function updateRestaurantMarkerByZoom(map: mapboxgl.Map, marker: mapboxgl.Marker
   }
 }
 
+const MAP_VIEW_MODES: { value: MapViewMode; icon: string; title: string }[] = [
+  { value: 'full', icon: fullMapIconUrl, title: 'Раскрыть карту' },
+  { value: 'half', icon: halfMapIconUrl, title: 'Показать карту' },
+  { value: 'none', icon: noMapIconUrl, title: 'Скрыть карту' },
+]
+
 export function MapboxMap({
   markers = [],
   restaurantCoords = null,
@@ -183,6 +199,8 @@ export function MapboxMap({
   onMarkerClick,
   onMapBackgroundClick,
   routeFlashTrigger,
+  mapViewMode: mapViewModeProp,
+  onMapViewModeChange,
 }: MapboxMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -193,6 +211,22 @@ export function MapboxMap({
   const popupOpenedAtRef = useRef(0)
   const initialBoundsFitDoneRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
+  const [mapContentHidden, setMapContentHidden] = useState(false)
+  const [mapViewModeInternal, setMapViewModeInternal] = useState<MapViewMode>('half')
+  const mapViewMode = mapViewModeProp ?? mapViewModeInternal
+  const setMapViewMode = (mode: MapViewMode) => {
+    if (mapViewModeProp == null) setMapViewModeInternal(mode)
+    onMapViewModeChange?.(mode)
+  }
+
+  useEffect(() => {
+    if (mapViewMode !== 'none') {
+      setMapContentHidden(false)
+      return
+    }
+    const t = window.setTimeout(() => setMapContentHidden(true), 1000)
+    return () => clearTimeout(t)
+  }, [mapViewMode])
   const onClearFocusRef = useRef(onClearFocus)
   const onOrderAddToRouteRef = useRef(onOrderAddToRoute)
   const onMapBackgroundClickRef = useRef(onMapBackgroundClick)
@@ -302,7 +336,7 @@ export function MapboxMap({
   }, [])
 
   useEffect(() => {
-    if (!focusCoords || !mapRef.current) return
+    if (mapViewMode === 'none' || !focusCoords || !mapRef.current) return
     const map = mapRef.current
     let cancelled = false
     const center: [number, number] = [focusCoords.lng, focusCoords.lat]
@@ -321,10 +355,10 @@ export function MapboxMap({
       cancelled = true
       map.off('moveend', onMoveEnd)
     }
-  }, [focusCoords])
+  }, [mapViewMode, focusCoords])
 
   useEffect(() => {
-    if (!focusBounds || !mapRef.current) return
+    if (mapViewMode === 'none' || !focusBounds || !mapRef.current) return
     const map = mapRef.current
     let cancelled = false
     const [[swLng, swLat], [neLng, neLat]] = [
@@ -346,7 +380,7 @@ export function MapboxMap({
       cancelled = true
       map.off('moveend', onMoveEnd)
     }
-  }, [focusBounds])
+  }, [mapViewMode, focusBounds])
 
   /* При первой загрузке карты — подогнать вид так, чтобы все заказы и ресторан влезали в область */
   useEffect(() => {
@@ -559,6 +593,34 @@ export function MapboxMap({
     return () => cancelAnimationFrame(rafId)
   }, [mapReady])
 
+  const ROUTE_COLLAPSE_DURATION_MS = 300
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return
+    const map = mapRef.current
+    const hasRouteLayer = map.getLayer('route-line') != null
+    const hasGlowLayer = map.getLayer('route-line-glow') != null
+    if (!hasRouteLayer) return
+    if (mapViewMode === 'none') {
+      const startOpacity = map.getPaintProperty('route-line', 'line-opacity') as number | undefined
+      const start = performance.now()
+      const startVal = typeof startOpacity === 'number' ? startOpacity : 1
+      let rafId: number
+      const tick = () => {
+        const elapsed = performance.now() - start
+        const t = Math.min(elapsed / ROUTE_COLLAPSE_DURATION_MS, 1)
+        const opacity = startVal * (1 - t)
+        map.setPaintProperty('route-line', 'line-opacity', opacity)
+        if (hasGlowLayer) map.setPaintProperty('route-line-glow', 'line-opacity', opacity * 0.6)
+        if (t < 1) rafId = requestAnimationFrame(tick)
+      }
+      rafId = requestAnimationFrame(tick)
+      return () => cancelAnimationFrame(rafId)
+    }
+    map.setPaintProperty('route-line', 'line-opacity', 1)
+    if (hasGlowLayer) map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+    return undefined
+  }, [mapReady, mapViewMode])
+
   if (!mapboxToken) {
     return (
       <div className="mapbox-map-container mapbox-map-placeholder" aria-label="Map">
@@ -575,11 +637,56 @@ export function MapboxMap({
     )
   }
 
+  const handleWrapperClick = (e: React.MouseEvent) => {
+    if (mapViewMode !== 'none') return
+    if ((e.target as Node) instanceof Element && (e.target as Element).closest('.mapbox-map-view-selector')) return
+    onMapViewModeChange?.('half')
+  }
+
   return (
     <div
-      ref={containerRef}
-      className="mapbox-map-container"
-      aria-label="Map"
-    />
+      className={`mapbox-map-wrapper${mapViewMode === 'none' ? ' mapbox-map-wrapper--collapsed' : ''}`}
+      onClick={handleWrapperClick}
+      role={mapViewMode === 'none' ? 'button' : undefined}
+      tabIndex={mapViewMode === 'none' ? 0 : undefined}
+      onKeyDown={
+        mapViewMode === 'none'
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onMapViewModeChange?.('half')
+              }
+            }
+          : undefined
+      }
+      aria-label={mapViewMode === 'none' ? 'Показать карту' : undefined}
+    >
+      <div
+        ref={containerRef}
+        className={`mapbox-map-container${mapContentHidden ? ' mapbox-map-container--hidden' : ''}`}
+        aria-label="Map"
+      />
+      <div className="mapbox-map-overlay" aria-hidden="true" />
+      {mapViewMode === 'none' ? (
+        <div className="mapbox-map-expand-icon" aria-hidden="true">
+          <img src={arrowLeftIconUrl} alt="" width={16} height={16} />
+        </div>
+      ) : null}
+      <div className="mapbox-map-view-selector" role="group" aria-label="Режим карты">
+        {MAP_VIEW_MODES.map(({ value, icon, title }) => (
+          <button
+            key={value}
+            type="button"
+            className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
+            onClick={() => setMapViewMode(value)}
+            title={title}
+            aria-pressed={mapViewMode === value}
+            aria-label={title}
+          >
+            <img src={icon} alt="" width={16} height={16} />
+          </button>
+        ))}
+      </div>
+    </div>
   )
 }

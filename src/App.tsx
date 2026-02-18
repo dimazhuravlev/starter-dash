@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { flushSync } from 'react-dom'
 import './App.css'
 import { useDashboardStore } from './store/useDashboardStore'
@@ -16,7 +16,7 @@ import editIcon from './assets/Edit.svg'
 import plusIcon from './assets/Plus.svg'
 import settingsIcon from './assets/Settings.svg'
 import exitIcon from './assets/Exit.svg'
-import { MapboxMap } from './components/MapboxMap'
+import { MapboxMap, type MapViewMode } from './components/MapboxMap'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
   pickup: 'Забирают заказ',
@@ -449,8 +449,12 @@ function DashboardScreen({
   const [recentlySentRouteIds, setRecentlySentRouteIds] = useState<string[]>([])
   const [pendingRevertRouteId, setPendingRevertRouteId] = useState<string | null>(null)
   const [recentlyRevertedToDraftRouteIds, setRecentlyRevertedToDraftRouteIds] = useState<string[]>([])
+  const [recentlyMovedToActiveRouteIds, setRecentlyMovedToActiveRouteIds] = useState<string[]>([])
   const [routeFlashTrigger, setRouteFlashTrigger] = useState<number | null>(null)
   const nextRevertedDraftIdRef = useRef<string | null>(null)
+  const prevClientRouteIdsRef = useRef<Set<string>>(new Set())
+  const didInitClientRoutesRef = useRef(false)
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('half')
 
   const handleSendRouteClick = useCallback((routeId: string) => {
     setPendingSendRouteId(routeId)
@@ -510,6 +514,24 @@ function DashboardScreen({
   const clientRoutes = sentRoutes.filter(
     (route) => route.step.kind !== 'pickup' && route.step.kind !== 'returning',
   )
+
+  useLayoutEffect(() => {
+    const currentIds = new Set(clientRoutes.map((r) => r.id))
+    const prevIds = prevClientRouteIdsRef.current
+    if (!didInitClientRoutesRef.current) {
+      didInitClientRoutesRef.current = true
+      prevClientRouteIdsRef.current = currentIds
+      return
+    }
+    prevClientRouteIdsRef.current = currentIds
+    const newlyActiveIds = clientRoutes.filter((r) => !prevIds.has(r.id)).map((r) => r.id)
+    if (newlyActiveIds.length === 0) return
+    setRecentlyMovedToActiveRouteIds((prev) => [...prev, ...newlyActiveIds])
+    const t = window.setTimeout(() => {
+      setRecentlyMovedToActiveRouteIds((prev) => prev.filter((id) => !newlyActiveIds.includes(id)))
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [clientRoutes])
 
   const courierSections = useMemo(() => {
     const grouped = new Map<string, Courier[]>()
@@ -576,6 +598,7 @@ function DashboardScreen({
   }, [deleteRouteDraft])
 
   const focusMapOnRoute = useCallback((routeId: string) => {
+    if (mapViewMode === 'none') return
     const state = useDashboardStore.getState()
     const route = state.routes[routeId]
     if (!route?.orderIds.length) return
@@ -592,7 +615,7 @@ function DashboardScreen({
       sw: { lng: Math.min(...lngs), lat: Math.min(...lats) },
       ne: { lng: Math.max(...lngs), lat: Math.max(...lats) },
     })
-  }, [])
+  }, [mapViewMode])
 
   const handleMarkerClick = useCallback(
     (marker: { id: string }) => {
@@ -732,6 +755,7 @@ function DashboardScreen({
             routeStageMin={routeStageMin}
             highlightedOrderIdFromMap={highlightedOrderIdFromMap}
             onOrderCardClick={(coords) => {
+              if (mapViewMode === 'none') return
               setFocusedRouteId(null)
               setMapFocusBounds(null)
               setMapFocusCoords(coords)
@@ -747,6 +771,7 @@ function DashboardScreen({
             routeStageMin={routeStageMin}
             highlightedOrderIdFromMap={highlightedOrderIdFromMap}
             onOrderCardClick={(coords) => {
+              if (mapViewMode === 'none') return
               setFocusedRouteId(null)
               setMapFocusBounds(null)
               setMapFocusCoords(coords)
@@ -762,6 +787,7 @@ function DashboardScreen({
             routeStageMin={routeStageMin}
             highlightedOrderIdFromMap={highlightedOrderIdFromMap}
             onOrderCardClick={(coords) => {
+              if (mapViewMode === 'none') return
               setFocusedRouteId(null)
               setMapFocusBounds(null)
               setMapFocusCoords(coords)
@@ -861,6 +887,7 @@ function DashboardScreen({
                     orderStageMin={orderStageMin}
                     routeStageMin={routeStageMin}
                     highlightedOrderIdFromMap={highlightedOrderIdFromMap}
+                    isJustAppeared={recentlyMovedToActiveRouteIds.includes(route.id)}
                     onFocusOnMap={focusMapOnRoute}
                   />
                 ))}
@@ -871,50 +898,60 @@ function DashboardScreen({
       </div>
 
       <div
-        ref={resizerRef}
-        className={`dashboard__resizer${isResizing ? ' dashboard__resizer--active' : ''}`}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Изменение ширины колонки"
-        onPointerDown={(event) => {
-          const width = rightColumnWidth ?? 0
-          resizeStateRef.current = { startX: event.clientX, startWidth: width }
-          setIsUserResized(true)
-          setIsResizing(true)
-          document.body.classList.add('is-resizing')
-          activePointerIdRef.current = event.pointerId
-          event.currentTarget.setPointerCapture(event.pointerId)
-          event.preventDefault()
+        className={`dashboard__right${mapViewMode === 'none' ? ' dashboard__right--map-collapsed' : ''}`}
+        style={{
+          width:
+            mapViewMode === 'none'
+              ? '44px'
+              : `${12 + (rightColumnWidth ?? 400)}px`,
         }}
       >
-        <img className="dashboard__resizer-icon" src={dndMapIcon} alt="" />
-      </div>
-
-      <section
-        className="dashboard__column dashboard__column--map"
-        style={rightColumnWidth ? { width: `${rightColumnWidth}px` } : undefined}
-      >
-        <MapWidget
-          orders={orders}
-          orderMarkers={orderMarkers}
-          restaurantCoords={RESTAURANT_COORDS}
-          routePathCoords={routePathCoords}
-          isRouteDraft={!!(focusedRouteId && routes[focusedRouteId]?.status === 'draft')}
-          focusCoords={mapFocusCoords}
-          focusBounds={mapFocusBounds}
-          onClearFocus={() => {
-            setMapFocusCoords(null)
-            setMapFocusBounds(null)
-            setHighlightedOrderIdFromMap(null)
-            // Не сбрасываем focusedRouteId при движении карты — маршрут остаётся до клика по заказу/другой карточке
+        <div
+          ref={resizerRef}
+          className={`dashboard__resizer${isResizing ? ' dashboard__resizer--active' : ''}`}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Изменение ширины колонки"
+          onPointerDown={(event) => {
+            const width = rightColumnWidth ?? 0
+            resizeStateRef.current = { startX: event.clientX, startWidth: width }
+            setIsUserResized(true)
+            setIsResizing(true)
+            document.body.classList.add('is-resizing')
+            activePointerIdRef.current = event.pointerId
+            event.currentTarget.setPointerCapture(event.pointerId)
+            event.preventDefault()
           }}
-          onOrderAddToRoute={handleOrderAddToRouteFromMap}
-          orderIdsInRoute={orderIdsInRoute}
-          onMarkerClick={handleMarkerClick}
-          onMapBackgroundClick={handleMapBackgroundClick}
-          routeFlashTrigger={routeFlashTrigger}
-        />
-      </section>
+        >
+          <img className="dashboard__resizer-icon" src={dndMapIcon} alt="" />
+        </div>
+
+        <section className="dashboard__column dashboard__column--map">
+          <MapWidget
+            orders={orders}
+            orderMarkers={orderMarkers}
+            restaurantCoords={RESTAURANT_COORDS}
+            routePathCoords={routePathCoords}
+            isRouteDraft={!!(focusedRouteId && routes[focusedRouteId]?.status === 'draft')}
+            focusCoords={mapFocusCoords}
+            focusBounds={mapFocusBounds}
+            onClearFocus={() => {
+              setMapFocusCoords(null)
+              setMapFocusBounds(null)
+              setHighlightedOrderIdFromMap(null)
+              // Не сбрасываем focusedRouteId при движении карты — маршрут остаётся до клика по заказу/другой карточке
+            }}
+            onOrderAddToRoute={handleOrderAddToRouteFromMap}
+            orderIdsInRoute={orderIdsInRoute}
+            onMarkerClick={handleMarkerClick}
+            onMapBackgroundClick={handleMapBackgroundClick}
+            routeFlashTrigger={routeFlashTrigger}
+            mapViewMode={mapViewMode}
+            onMapViewModeChange={setMapViewMode}
+            mapColumnWidthWhenVisible={rightColumnWidth ?? undefined}
+          />
+        </section>
+      </div>
     </div>
   )
 }
@@ -927,6 +964,8 @@ export type OrderMarkerItem = {
   isOverdue: boolean
   routePosition?: number
 }
+
+const DEFAULT_MAP_COLUMN_WIDTH = 400
 
 export function MapWidget({
   orders: _orders,
@@ -942,6 +981,9 @@ export function MapWidget({
   onMarkerClick,
   onMapBackgroundClick,
   routeFlashTrigger,
+  mapViewMode,
+  onMapViewModeChange,
+  mapColumnWidthWhenVisible,
 }: {
   orders: Record<string, Order>
   orderMarkers: OrderMarkerItem[]
@@ -956,11 +998,27 @@ export function MapWidget({
   onMarkerClick?: (marker: OrderMarkerItem) => void
   onMapBackgroundClick?: () => void
   routeFlashTrigger?: number | null
+  mapViewMode?: MapViewMode
+  onMapViewModeChange?: (mode: MapViewMode) => void
+  mapColumnWidthWhenVisible?: number
 }) {
   void _orders
+  const isCollapsed = mapViewMode === 'none'
+  const innerWidth = isCollapsed ? (mapColumnWidthWhenVisible ?? DEFAULT_MAP_COLUMN_WIDTH) : undefined
   return (
-    <div className="map-widget__container">
-      <MapboxMap
+    <div
+      className={`map-widget__container${isCollapsed ? ' map-widget__container--collapsed' : ''}`}
+      style={isCollapsed ? { overflow: 'hidden' } : undefined}
+    >
+      <div
+        className="map-widget__inner"
+        style={
+          isCollapsed && innerWidth != null
+            ? { position: 'absolute', right: 0, top: 0, bottom: 0, width: innerWidth }
+            : undefined
+        }
+      >
+        <MapboxMap
         markers={orderMarkers}
         restaurantCoords={restaurantCoords ?? null}
         routePathCoords={routePathCoords}
@@ -973,7 +1031,10 @@ export function MapWidget({
         onMarkerClick={onMarkerClick}
         onMapBackgroundClick={onMapBackgroundClick}
         routeFlashTrigger={routeFlashTrigger ?? null}
-      />
+        mapViewMode={mapViewMode}
+          onMapViewModeChange={onMapViewModeChange}
+        />
+      </div>
     </div>
   )
 }
