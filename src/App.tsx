@@ -16,7 +16,7 @@ import editIcon from './assets/Edit.svg'
 import plusIcon from './assets/Plus.svg'
 import settingsIcon from './assets/Settings.svg'
 import exitIcon from './assets/Exit.svg'
-import { MapboxMap, type MapViewMode } from './components/MapboxMap'
+import { MapboxMap, type CourierMarkerItem, type MapViewMode } from './components/MapboxMap'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
   pickup: 'Забирают заказ',
@@ -268,6 +268,15 @@ function App() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeRestaurantTab, setActiveRestaurantTab] = useState(0)
 
+  // При перезагрузке страницы создаём пустой шаблон маршрута, если нет ни одного черновика
+  useEffect(() => {
+    const { routes } = useDashboardStore.getState()
+    const hasDraft = Object.values(routes).some((r) => r.status === 'draft')
+    if (!hasDraft) {
+      useDashboardStore.getState().createRouteDraft()
+    }
+  }, [])
+
   useEffect(() => {
     if (!isRunning) {
       return
@@ -427,14 +436,22 @@ function DashboardScreen({
   const courierList = useMemo(() => Object.values(couriers), [couriers])
   const routeList = useMemo(() => Object.values(routes), [routes])
   const dashboardRef = useRef<HTMLDivElement | null>(null)
+  const leftWrapperRef = useRef<HTMLDivElement | null>(null)
+  const rightColumnRef = useRef<HTMLDivElement | null>(null)
   const resizerRef = useRef<HTMLDivElement | null>(null)
   const activePointerIdRef = useRef<number | null>(null)
   const resizeStateRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const resizerJustInteractedRef = useRef(false)
+  const resizeDragStartedRef = useRef(false)
+  const resizerInitialListenersCleanupRef = useRef<(() => void) | null>(null)
+  const RESIZE_DRAG_THRESHOLD_PX = 5
   const [rightColumnWidth, setRightColumnWidth] = useState<number | null>(null)
+  const [dashboardWidth, setDashboardWidth] = useState<number | null>(null)
   const [isResizing, setIsResizing] = useState(false)
   const [isUserResized, setIsUserResized] = useState(false)
   const [mapFocusCoords, setMapFocusCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [highlightedOrderIdFromMap, setHighlightedOrderIdFromMap] = useState<string | null>(null)
+  const [highlightedCourierIdFromMap, setHighlightedCourierIdFromMap] = useState<string | null>(null)
   const highlightedOrderIdFromMapRef = useRef(highlightedOrderIdFromMap)
   useEffect(() => {
     highlightedOrderIdFromMapRef.current = highlightedOrderIdFromMap
@@ -593,6 +610,18 @@ function DashboardScreen({
     [orderList, now, orderStageMin, routeStageMin, focusedRouteId, routes],
   )
 
+  const courierMarkers = useMemo<CourierMarkerItem[]>(
+    () =>
+      Object.values(couriers).map((c) => ({
+        id: c.id,
+        lng: c.coords.lng,
+        lat: c.coords.lat,
+        surname: c.name.split(/\s+/)[0] ?? c.name,
+        type: c.type,
+      })),
+    [couriers],
+  )
+
   const handleDeleteDraft = useCallback((routeId: string) => {
     deleteRouteDraft(routeId)
   }, [deleteRouteDraft])
@@ -654,7 +683,25 @@ function DashboardScreen({
 
   const handleMapBackgroundClick = useCallback(() => {
     setHighlightedOrderIdFromMap(null)
+    setHighlightedCourierIdFromMap(null)
   }, [])
+
+  const handleCourierMarkerClick = useCallback((marker: CourierMarkerItem) => {
+    setHighlightedCourierIdFromMap((prev) => (prev === marker.id ? null : marker.id))
+    setFocusedRouteId(null)
+    setMapFocusBounds(null)
+    setMapFocusCoords({ lat: marker.lat, lng: marker.lng })
+  }, [])
+
+  const handleCourierCardClick = useCallback(
+    (coords: { lat: number; lng: number }) => {
+      if (mapViewMode === 'none') return
+      setFocusedRouteId(null)
+      setMapFocusBounds(null)
+      setMapFocusCoords(coords)
+    },
+    [mapViewMode],
+  )
 
   const handleOrderAddToRouteFromMap = useCallback(
     (orderId: string) => {
@@ -670,6 +717,40 @@ function DashboardScreen({
     [draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],
   )
 
+  const MIN_RIGHT_WIDTH = 200
+  const RESIZER_WIDTH = 12
+  /** Максимальная ширина правой колонки (карты) — 80% ширины вьюпорта */
+  const MAX_RIGHT_WIDTH_RATIO = 0.8
+  /** margin-right у .dashboard__right (8px) + отступ/зазор (8px) — чтобы карта не уезжала за край */
+  const RIGHT_COLUMN_MARGIN = 16
+
+  /** При сужении левой области — сразу прокручиваем левую панель вправо, чтобы левая часть уезжала за край */
+  const syncLeftWrapperScroll = useCallback(() => {
+    const wrapper = leftWrapperRef.current
+    if (!wrapper) return
+    const contentWidth = wrapper.scrollWidth
+    const viewWidth = wrapper.clientWidth
+    if (contentWidth > viewWidth) {
+      wrapper.scrollLeft = contentWidth - viewWidth
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    syncLeftWrapperScroll()
+  }, [rightColumnWidth, dashboardWidth, syncLeftWrapperScroll])
+
+  useEffect(() => {
+    const dashboard = dashboardRef.current
+    if (!dashboard) return
+    const updateWidth = () => {
+      setDashboardWidth(dashboard.getBoundingClientRect().width)
+    }
+    updateWidth()
+    const ro = new ResizeObserver(updateWidth)
+    ro.observe(dashboard)
+    return () => ro.disconnect()
+  }, [])
+
   useEffect(() => {
     if (isUserResized) return
     const updateDefaultWidth = () => {
@@ -677,9 +758,10 @@ function DashboardScreen({
       if (!dashboard) return
       const totalWidth = dashboard.getBoundingClientRect().width
       if (!totalWidth) return
-      const resizerWidth = 12
-      const baseColumnWidth = (totalWidth - resizerWidth) / 6
-      setRightColumnWidth(Math.floor(baseColumnWidth * 2))
+      const baseColumnWidth = (totalWidth - RESIZER_WIDTH - RIGHT_COLUMN_MARGIN) / 6
+      const defaultRight = Math.floor(baseColumnWidth * 2)
+      const maxRight = Math.min(totalWidth - RESIZER_WIDTH, totalWidth * MAX_RIGHT_WIDTH_RATIO)
+      setRightColumnWidth(Math.max(MIN_RIGHT_WIDTH, Math.min(defaultRight, maxRight)))
     }
     updateDefaultWidth()
     window.addEventListener('resize', updateDefaultWidth)
@@ -688,43 +770,75 @@ function DashboardScreen({
 
   useEffect(() => {
     if (!isResizing) return
+    const rightEl = rightColumnRef.current
     const handlePointerMove = (event: PointerEvent) => {
       const state = resizeStateRef.current
       const dashboard = dashboardRef.current
-      if (!state || !dashboard) return
+      if (!state || !dashboard || !rightEl) return
+      event.preventDefault()
       const totalWidth = dashboard.getBoundingClientRect().width
-      const resizerWidth = 12
-      const maxRightWidth = totalWidth - resizerWidth
-      const nextWidth = Math.min(
-        maxRightWidth,
-        Math.max(0, state.startWidth - (event.clientX - state.startX)),
+      const maxRight = Math.max(
+        MIN_RIGHT_WIDTH,
+        Math.min(totalWidth - RESIZER_WIDTH, totalWidth * MAX_RIGHT_WIDTH_RATIO),
       )
-      setRightColumnWidth(Math.floor(nextWidth))
+      const nextWidth = Math.min(
+        maxRight,
+        Math.max(MIN_RIGHT_WIDTH, state.startWidth - (event.clientX - state.startX)),
+      )
+      const widthPx = Math.round(nextWidth) + RESIZER_WIDTH
+      rightEl.style.width = `${widthPx}px`
+      requestAnimationFrame(() => syncLeftWrapperScroll())
     }
     const handlePointerUp = () => {
+      const rightEl = rightColumnRef.current
+      if (rightEl) {
+        const currentWidth = rightEl.getBoundingClientRect().width - RESIZER_WIDTH
+        const width = Math.round(Math.max(MIN_RIGHT_WIDTH, currentWidth))
+        setRightColumnWidth(width)
+        rightEl.style.width = ''
+      }
       setIsResizing(false)
       resizeStateRef.current = null
+      resizeDragStartedRef.current = false
       document.body.classList.remove('is-resizing')
-      if (activePointerIdRef.current !== null) {
-        resizerRef.current?.releasePointerCapture(activePointerIdRef.current)
+      if (activePointerIdRef.current !== null && resizerRef.current) {
+        try {
+          resizerRef.current.releasePointerCapture(activePointerIdRef.current)
+        } catch {
+          // ignore if already released
+        }
         activePointerIdRef.current = null
       }
+      window.setTimeout(() => {
+        resizerJustInteractedRef.current = false
+      }, 200)
     }
-    window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp)
-    window.addEventListener('pointercancel', handlePointerUp)
+    const opts: AddEventListenerOptions = { capture: true }
+    window.addEventListener('pointermove', handlePointerMove, opts)
+    window.addEventListener('pointerup', handlePointerUp, opts)
+    window.addEventListener('pointercancel', handlePointerUp, opts)
     return () => {
-      window.removeEventListener('pointermove', handlePointerMove)
-      window.removeEventListener('pointerup', handlePointerUp)
-      window.removeEventListener('pointercancel', handlePointerUp)
+      window.removeEventListener('pointermove', handlePointerMove, opts)
+      window.removeEventListener('pointerup', handlePointerUp, opts)
+      window.removeEventListener('pointercancel', handlePointerUp, opts)
     }
-  }, [isResizing])
+  }, [isResizing, syncLeftWrapperScroll])
 
   return (
-    <div className="dashboard" ref={dashboardRef}>
-      <div className="dashboard__left">
+    <div
+      className="dashboard"
+      ref={dashboardRef}
+      onClickCapture={(e) => {
+        if (resizerJustInteractedRef.current) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
+      }}
+    >
+      <div className="dashboard__left-wrapper" ref={leftWrapperRef}>
+        <div className="dashboard__left">
         <section className="dashboard__column">
-          <div className="column__title">Курьеры</div>
+          <div className="column__title">Курьеры{courierList.length > 0 && <span className="column__title-count">{courierList.length}</span>}</div>
           {courierSections.map(({ title, list }) => (
             <div key={title} className="section">
               <div className="section__title">{title}</div>
@@ -737,6 +851,8 @@ function DashboardScreen({
                     orders={orders}
                     now={now}
                     routeStageMin={routeStageMin}
+                    highlightedFromMap={courier.id === highlightedCourierIdFromMap}
+                    onFocusOnMap={handleCourierCardClick}
                   />
                 ))}
               </div>
@@ -745,7 +861,7 @@ function DashboardScreen({
         </section>
         <div className="dashboard__divider" aria-hidden />
         <section className="dashboard__column">
-          <div className="column__title">Заказы</div>
+          <div className="column__title">Заказы{unassignedOrders.length > 0 && <span className="column__title-count">{unassignedOrders.length}</span>}</div>
           <OrdersSection
             title="Готовы"
             orders={ordersReady}
@@ -803,7 +919,10 @@ function DashboardScreen({
             onClick={createRouteDraft}
             aria-label="Новый маршрут"
           >
-            <span>Маршруты</span>
+            <span className="column__title-with-count">
+              <span>Маршруты</span>
+              {assignedRoutes.length > 0 && <span className="column__title-count">{assignedRoutes.length}</span>}
+            </span>
             <img src={plusIcon} alt="" width={16} height={16} />
           </button>
           {(draftRoutes.length > 0 || draftSectionExiting) ? (
@@ -872,7 +991,7 @@ function DashboardScreen({
         </section>
         <div className="dashboard__divider" aria-hidden />
         <section className="dashboard__column">
-          <div className="column__title">Доставка</div>
+          <div className="column__title">Доставка{clientRoutes.length > 0 && <span className="column__title-count">{clientRoutes.length}</span>}</div>
           {clientRoutes.length > 0 ? (
             <div className="section">
               <div className="section__title">Активные</div>
@@ -895,34 +1014,91 @@ function DashboardScreen({
             </div>
           ) : null}
         </section>
+        </div>
       </div>
 
       <div
-        className={`dashboard__right${mapViewMode === 'none' ? ' dashboard__right--map-collapsed' : ''}`}
+        ref={rightColumnRef}
+        className={`dashboard__right${mapViewMode === 'none' ? ' dashboard__right--map-collapsed' : ''}${isResizing ? ' dashboard__right--resizing' : ''}`}
         style={{
           width:
             mapViewMode === 'none'
               ? '44px'
-              : `${12 + (rightColumnWidth ?? 400)}px`,
+              : `${RESIZER_WIDTH + (dashboardWidth != null ? Math.min(rightColumnWidth ?? 400, Math.max(MIN_RIGHT_WIDTH, Math.min(dashboardWidth - RESIZER_WIDTH, dashboardWidth * MAX_RIGHT_WIDTH_RATIO))) : (rightColumnWidth ?? 400))}px`,
         }}
       >
         <div
           ref={resizerRef}
-          className={`dashboard__resizer${isResizing ? ' dashboard__resizer--active' : ''}`}
+          className={`dashboard__resizer${isResizing ? ' dashboard__resizer--active' : ''}${mapViewMode === 'none' ? ' dashboard__resizer--no-dnd' : ''}`}
           role="separator"
           aria-orientation="vertical"
-          aria-label="Изменение ширины колонки"
-          onPointerDown={(event) => {
-            const width = rightColumnWidth ?? 0
-            resizeStateRef.current = { startX: event.clientX, startWidth: width }
+          aria-label={mapViewMode === 'none' ? undefined : 'Изменение ширины колонки'}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onPointerDown={mapViewMode === 'none' ? undefined : (event) => {
+            resizerJustInteractedRef.current = true
+            resizeDragStartedRef.current = false
+            let startWidth = rightColumnWidth ?? null
+            if (startWidth === null) {
+              const rightEl = (event.currentTarget as HTMLElement).parentElement
+              if (rightEl) {
+                startWidth = Math.max(0, rightEl.getBoundingClientRect().width - 12)
+              }
+            }
+            startWidth = startWidth ?? 400
+            const startX = event.clientX
+            resizeStateRef.current = { startX, startWidth }
             setIsUserResized(true)
-            setIsResizing(true)
-            document.body.classList.add('is-resizing')
             activePointerIdRef.current = event.pointerId
             event.currentTarget.setPointerCapture(event.pointerId)
             event.preventDefault()
+            event.stopPropagation()
+
+            const opts: AddEventListenerOptions = { capture: true }
+            const handlePointerMove = (e: PointerEvent) => {
+              if (!resizeDragStartedRef.current) {
+                if (Math.abs(e.clientX - startX) >= RESIZE_DRAG_THRESHOLD_PX) {
+                  resizeDragStartedRef.current = true
+                  setIsResizing(true)
+                  document.body.classList.add('is-resizing')
+                  resizerInitialListenersCleanupRef.current?.()
+                  resizerInitialListenersCleanupRef.current = null
+                }
+              }
+            }
+            const handlePointerUp = () => {
+              resizerInitialListenersCleanupRef.current?.()
+              resizerInitialListenersCleanupRef.current = null
+              if (activePointerIdRef.current !== null && resizerRef.current) {
+                try {
+                  resizerRef.current.releasePointerCapture(activePointerIdRef.current)
+                } catch {
+                  // ignore
+                }
+                activePointerIdRef.current = null
+              }
+              resizeStateRef.current = null
+              if (!resizeDragStartedRef.current) {
+                window.setTimeout(() => {
+                  resizerJustInteractedRef.current = false
+                }, 200)
+              }
+            }
+            const cleanup = () => {
+              window.removeEventListener('pointermove', handlePointerMove, opts)
+              window.removeEventListener('pointerup', handlePointerUp, opts)
+              window.removeEventListener('pointercancel', handlePointerUp, opts)
+            }
+            resizerInitialListenersCleanupRef.current = cleanup
+            window.addEventListener('pointermove', handlePointerMove, opts)
+            window.addEventListener('pointerup', handlePointerUp, opts)
+            window.addEventListener('pointercancel', handlePointerUp, opts)
           }}
         >
+          {/* Расширенная зона захвата: перехватывает клики, которые иначе попадали бы в левый край карты */}
+          <div className="dashboard__resizer-hit-area" aria-hidden="true" />
           <img className="dashboard__resizer-icon" src={dndMapIcon} alt="" />
         </div>
 
@@ -930,6 +1106,7 @@ function DashboardScreen({
           <MapWidget
             orders={orders}
             orderMarkers={orderMarkers}
+            courierMarkers={courierMarkers}
             restaurantCoords={RESTAURANT_COORDS}
             routePathCoords={routePathCoords}
             isRouteDraft={!!(focusedRouteId && routes[focusedRouteId]?.status === 'draft')}
@@ -939,15 +1116,20 @@ function DashboardScreen({
               setMapFocusCoords(null)
               setMapFocusBounds(null)
               setHighlightedOrderIdFromMap(null)
+              setHighlightedCourierIdFromMap(null)
               // Не сбрасываем focusedRouteId при движении карты — маршрут остаётся до клика по заказу/другой карточке
             }}
             onOrderAddToRoute={handleOrderAddToRouteFromMap}
             orderIdsInRoute={orderIdsInRoute}
             onMarkerClick={handleMarkerClick}
+            onCourierMarkerClick={handleCourierMarkerClick}
             onMapBackgroundClick={handleMapBackgroundClick}
             routeFlashTrigger={routeFlashTrigger}
             mapViewMode={mapViewMode}
-            onMapViewModeChange={setMapViewMode}
+            onMapViewModeChange={(mode) => {
+              if (mode === 'none' && resizerJustInteractedRef.current) return
+              setMapViewMode(mode)
+            }}
             mapColumnWidthWhenVisible={rightColumnWidth ?? undefined}
           />
         </section>
@@ -970,6 +1152,7 @@ const DEFAULT_MAP_COLUMN_WIDTH = 400
 export function MapWidget({
   orders: _orders,
   orderMarkers,
+  courierMarkers = [],
   restaurantCoords,
   routePathCoords,
   isRouteDraft,
@@ -979,6 +1162,7 @@ export function MapWidget({
   onOrderAddToRoute,
   orderIdsInRoute,
   onMarkerClick,
+  onCourierMarkerClick,
   onMapBackgroundClick,
   routeFlashTrigger,
   mapViewMode,
@@ -987,6 +1171,7 @@ export function MapWidget({
 }: {
   orders: Record<string, Order>
   orderMarkers: OrderMarkerItem[]
+  courierMarkers?: CourierMarkerItem[]
   restaurantCoords?: { lat: number; lng: number } | null
   routePathCoords: { lng: number; lat: number }[] | null
   isRouteDraft?: boolean
@@ -996,6 +1181,7 @@ export function MapWidget({
   onOrderAddToRoute?: (orderId: string) => void
   orderIdsInRoute?: string[]
   onMarkerClick?: (marker: OrderMarkerItem) => void
+  onCourierMarkerClick?: (marker: CourierMarkerItem) => void
   onMapBackgroundClick?: () => void
   routeFlashTrigger?: number | null
   mapViewMode?: MapViewMode
@@ -1020,6 +1206,7 @@ export function MapWidget({
       >
         <MapboxMap
         markers={orderMarkers}
+        courierMarkers={courierMarkers}
         restaurantCoords={restaurantCoords ?? null}
         routePathCoords={routePathCoords}
         isRouteDraft={isRouteDraft ?? false}
@@ -1029,6 +1216,7 @@ export function MapWidget({
         onOrderAddToRoute={onOrderAddToRoute}
         orderIdsInRoute={orderIdsInRoute}
         onMarkerClick={onMarkerClick}
+        onCourierMarkerClick={onCourierMarkerClick}
         onMapBackgroundClick={onMapBackgroundClick}
         routeFlashTrigger={routeFlashTrigger ?? null}
         mapViewMode={mapViewMode}
@@ -1089,17 +1277,22 @@ function CardCourier({
   orders,
   now,
   routeStageMin,
+  highlightedFromMap,
+  onFocusOnMap,
 }: {
   courier: Courier
   routes: Record<string, Route>
   orders: Record<string, Order>
   now: number
   routeStageMin: RouteStageMin
+  highlightedFromMap?: boolean
+  onFocusOnMap?: (coords: { lat: number; lng: number }) => void
 }) {
   const attachCourierToRoute = useDashboardStore((state) => state.attachCourierToRoute)
   const createRouteDraft = useDashboardStore((state) => state.createRouteDraft)
   const deleteRouteDraft = useDashboardStore((state) => state.deleteRouteDraft)
   const [isDragging, setIsDragging] = useState(false)
+  const dragJustEndedRef = useRef(false)
   const route = courier.routeId ? routes[courier.routeId] : undefined
   const remainingMin = getRouteRemainingMin(route, orders, routeStageMin, now)
   const freeMinutes = Math.max(Math.floor((now - (courier.freeSince ?? now)) / MINUTE_MS), 0)
@@ -1112,11 +1305,27 @@ function CardCourier({
   )
   const isDraggable = !isAssignedToDraft
 
+  const handleFocusOnMap = () => {
+    if (isDragging || dragJustEndedRef.current || !onFocusOnMap) return
+    onFocusOnMap({ ...courier.coords })
+  }
+
   return (
     <div
       className={`card card--courier${isDraggable ? ' card--draggable' : ''}${
         isDragging ? ' card--dragging' : ''
-      }${isAssignedToDraft ? ' card--in-draft' : ''}`}
+      }${isAssignedToDraft ? ' card--in-draft' : ''}${onFocusOnMap ? ' card--focus-on-map' : ''}${
+        highlightedFromMap ? ' card--highlighted-from-map' : ''
+      }`}
+      role={onFocusOnMap ? 'button' : undefined}
+      tabIndex={onFocusOnMap ? 0 : undefined}
+      onClick={handleFocusOnMap}
+      onKeyDown={(e) => {
+        if (onFocusOnMap && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          handleFocusOnMap()
+        }
+      }}
       draggable={isDraggable}
       onDragStart={(event) => {
         if (!isDraggable) return
@@ -1127,6 +1336,7 @@ function CardCourier({
         setDragImageAsCopy(event, event.currentTarget)
       }}
       onDragEnd={() => {
+        dragJustEndedRef.current = true
         setIsDragging(false)
         document.body.classList.remove('is-dragging')
         if (lastDropRouteId && lastDndPayload?.kind === 'courier') {
@@ -1135,6 +1345,9 @@ function CardCourier({
         lastDndPayload = null
         lastDropRouteId = null
         cleanupAutoDraftRouteIfEmpty(deleteRouteDraft)
+        window.setTimeout(() => {
+          dragJustEndedRef.current = false
+        })
       }}
     >
       <div className="card__row">

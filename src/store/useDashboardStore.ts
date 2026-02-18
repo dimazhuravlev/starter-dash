@@ -41,6 +41,14 @@ const courierNames = [
 
 const COURIER_TYPES: CourierType[] = ['pedestrian', 'bike', 'car']
 
+/** Случайные координаты в границах Санкт-Петербурга */
+function getRandomCoordsInSpb(): { lat: number; lng: number } {
+  return {
+    lat: 59.85 + Math.random() * 0.15,
+    lng: 30.15 + Math.random() * 0.4,
+  }
+}
+
 type DashboardSettings = Pick<
   DashboardState,
   'speed' | 'orderCreateIntervalMin' | 'orderStageMin' | 'orderSlaOptionsMin' | 'routeStageMin'
@@ -78,6 +86,7 @@ const buildSeedState = (settings?: Partial<DashboardSettings>): DashboardState =
       type: COURIER_TYPES[index % COURIER_TYPES.length],
       status: 'free',
       freeSince: getRandomFreeSince(now),
+      coords: getRandomCoordsInSpb(),
     }
   })
 

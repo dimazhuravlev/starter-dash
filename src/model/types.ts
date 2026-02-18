@@ -46,6 +46,8 @@ export type Courier = {
   status: CourierStatus
   freeSince: number
   routeId?: string
+  /** Координаты курьера в рамках города (для отображения на карте) */
+  coords: { lat: number; lng: number }
 }
 
 export type Route = {

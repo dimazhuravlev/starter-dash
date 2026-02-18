@@ -3,14 +3,19 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDirectionsRoute, emptyRouteGeoJSON, type RoutePathCoord } from '../hooks/useDirectionsRoute'
 import restaurantIconUrl from '../assets/Restourant.svg'
-import fullMapIconUrl from '../assets/Full map.svg'
 import halfMapIconUrl from '../assets/Half map.svg'
 import noMapIconUrl from '../assets/No map.svg'
 import arrowLeftIconUrl from '../assets/Arrow-left.svg'
+import walkingCourierIconUrl from '../assets/Walking courier.svg'
+import bikeCourierIconUrl from '../assets/Bike courier.svg'
+import carCourierIconUrl from '../assets/Car courier 2.svg'
+import { RESTAURANT_COORDS, type CourierType } from '../model/types'
 
-const DEFAULT_CENTER: [number, number] = [30.3125, 59.965]
-const DEFAULT_ZOOM = 13
+/** По умолчанию при загрузке страницы — те же параметры, что у кнопки «Ресторан» на карте */
+const DEFAULT_CENTER: [number, number] = [RESTAURANT_COORDS.lng, RESTAURANT_COORDS.lat]
 const FOCUS_ZOOM = 15
+/** Зум при фокусе на ресторан (кнопка на карте и начальная загрузка) */
+const RESTAURANT_FOCUS_ZOOM = 13
 const FLY_DURATION_MS = 1200
 const FIT_BOUNDS_PADDING_PX = 80
 const FIT_BOUNDS_DURATION_MS = 800
@@ -38,6 +43,16 @@ export type MapMarkerItem = {
   isOverdue: boolean
   /** Порядковый номер в маршруте (1, 2, 3) — показывается внутри круга */
   routePosition?: number
+}
+
+/** Маркер курьера на карте: иконка типа (пеший/вело/авто) 16px зелёный + подпись фамилии */
+export type CourierMarkerItem = {
+  id: string
+  lng: number
+  lat: number
+  /** Фамилия курьера (без имени) для подписи под маркером */
+  surname: string
+  type: CourierType
 }
 
 export type MapFocusBounds = { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } }
@@ -73,9 +88,13 @@ type MapboxMapProps = {
   mapViewMode?: MapViewMode
   /** Вызывается при смене режима карты */
   onMapViewModeChange?: (mode: MapViewMode) => void
+  /** Маркеры курьеров на карте (иконка 16px зелёный + фамилия) */
+  courierMarkers?: CourierMarkerItem[]
+  /** Вызывается при клике по маркеру курьера (для подсветки карточки курьера) */
+  onCourierMarkerClick?: (marker: CourierMarkerItem) => void
 }
 
-export type MapViewMode = 'full' | 'half' | 'none'
+export type MapViewMode = 'half' | 'none'
 
 /** Убирает тип улицы в начале адреса (ул., наб., пер., пр. и т.д.) для подписи под маркером */
 function shortenAddressForLabel(address: string): string {
@@ -152,36 +171,110 @@ function createRestaurantMarkerElement(): HTMLDivElement {
   return wrap
 }
 
-function updateMarkersByZoom(map: mapboxgl.Map, markerInstances: mapboxgl.Marker[]) {
+const COURIER_TYPE_ICONS: Record<CourierType, string> = {
+  pedestrian: walkingCourierIconUrl,
+  bike: bikeCourierIconUrl,
+  car: carCourierIconUrl,
+}
+
+function createCourierMarkerElement(
+  courier: CourierMarkerItem,
+  onCourierMarkerClick?: (marker: CourierMarkerItem) => void,
+): HTMLDivElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'mapbox-courier-marker'
+  wrap.setAttribute('aria-hidden', 'true')
+  if (onCourierMarkerClick) {
+    wrap.style.cursor = 'pointer'
+    wrap.style.pointerEvents = 'auto'
+  }
+  const icon = document.createElement('img')
+  icon.className = 'mapbox-courier-marker__icon'
+  icon.src = COURIER_TYPE_ICONS[courier.type]
+  icon.width = 16
+  icon.height = 16
+  icon.alt = ''
+  const label = document.createElement('span')
+  label.className = 'mapbox-courier-marker__label'
+  label.textContent = courier.surname
+  wrap.appendChild(icon)
+  wrap.appendChild(label)
+  if (onCourierMarkerClick) {
+    wrap.addEventListener('click', (e) => {
+      e.stopPropagation()
+      onCourierMarkerClick(courier)
+    })
+  }
+  return wrap
+}
+
+/** Единое условие и параметры для переключения маркеров по масштабу карты */
+function getMarkerZoomState(map: mapboxgl.Map): { isCompact: boolean; offsetY: number } {
   const zoom = map.getZoom()
   const isCompact = zoom <= ZOOM_COMPACT_THRESHOLD
   const offsetY = isCompact ? MARKER_OFFSET_COMPACT : MARKER_OFFSET_FULL
+  return { isCompact, offsetY }
+}
+
+function updateOrderMarkersByZoom(
+  markerInstances: mapboxgl.Marker[],
+  state: { isCompact: boolean; offsetY: number },
+) {
   markerInstances.forEach((m) => {
     const el = m.getElement()
     if (!el) return
-    if (isCompact) {
+    if (state.isCompact) {
       el.classList.add('mapbox-order-marker--compact')
     } else {
       el.classList.remove('mapbox-order-marker--compact')
     }
-    m.setOffset([0, offsetY])
+    m.setOffset([0, state.offsetY])
   })
 }
 
-function updateRestaurantMarkerByZoom(map: mapboxgl.Map, marker: mapboxgl.Marker | null) {
+function updateRestaurantMarkerByZoom(
+  marker: mapboxgl.Marker | null,
+  state: { isCompact: boolean },
+) {
   if (!marker) return
   const el = marker.getElement()
   if (!el) return
-  const isCompact = map.getZoom() <= ZOOM_COMPACT_THRESHOLD
-  if (isCompact) {
+  if (state.isCompact) {
     el.classList.add('mapbox-restaurant-marker--compact')
   } else {
     el.classList.remove('mapbox-restaurant-marker--compact')
   }
 }
 
+function updateCourierMarkersByZoom(
+  markerInstances: mapboxgl.Marker[],
+  state: { isCompact: boolean; offsetY: number },
+) {
+  markerInstances.forEach((m) => {
+    const el = m.getElement()
+    if (!el) return
+    if (state.isCompact) {
+      el.classList.add('mapbox-courier-marker--compact')
+    } else {
+      el.classList.remove('mapbox-courier-marker--compact')
+    }
+    m.setOffset([0, state.offsetY])
+  })
+}
+
+function updateAllMarkersByZoom(
+  map: mapboxgl.Map,
+  orderMarkers: mapboxgl.Marker[],
+  restaurantMarker: mapboxgl.Marker | null,
+  courierMarkers: mapboxgl.Marker[],
+) {
+  const state = getMarkerZoomState(map)
+  updateOrderMarkersByZoom(orderMarkers, state)
+  updateRestaurantMarkerByZoom(restaurantMarker, state)
+  updateCourierMarkersByZoom(courierMarkers, state)
+}
+
 const MAP_VIEW_MODES: { value: MapViewMode; icon: string; title: string }[] = [
-  { value: 'full', icon: fullMapIconUrl, title: 'Раскрыть карту' },
   { value: 'half', icon: halfMapIconUrl, title: 'Показать карту' },
   { value: 'none', icon: noMapIconUrl, title: 'Скрыть карту' },
 ]
@@ -201,15 +294,17 @@ export function MapboxMap({
   routeFlashTrigger,
   mapViewMode: mapViewModeProp,
   onMapViewModeChange,
+  courierMarkers = [],
+  onCourierMarkerClick,
 }: MapboxMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const initializedRef = useRef(false)
   const markersRef = useRef<mapboxgl.Marker[]>([])
+  const courierMarkersRef = useRef<mapboxgl.Marker[]>([])
   const restaurantMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const popupOpenedAtRef = useRef(0)
-  const initialBoundsFitDoneRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
   const [mapContentHidden, setMapContentHidden] = useState(false)
   const [mapViewModeInternal, setMapViewModeInternal] = useState<MapViewMode>('half')
@@ -257,7 +352,8 @@ export function MapboxMap({
       container,
       style: 'mapbox://styles/mapbox/dark-v11',
       center: DEFAULT_CENTER,
-      zoom: DEFAULT_ZOOM,
+      zoom: RESTAURANT_FOCUS_ZOOM,
+      attributionControl: false,
     })
 
     mapRef.current = map
@@ -382,26 +478,6 @@ export function MapboxMap({
     }
   }, [mapViewMode, focusBounds])
 
-  /* При первой загрузке карты — подогнать вид так, чтобы все заказы и ресторан влезали в область */
-  useEffect(() => {
-    if (!mapRef.current || !mapReady || initialBoundsFitDoneRef.current) return
-    const points: [number, number][] = []
-    markers.forEach((m) => points.push([m.lng, m.lat]))
-    if (restaurantCoords) points.push([restaurantCoords.lng, restaurantCoords.lat])
-    if (points.length < 2) {
-      initialBoundsFitDoneRef.current = true
-      return
-    }
-    const bounds = new mapboxgl.LngLatBounds()
-    points.forEach((p) => bounds.extend(p))
-    initialBoundsFitDoneRef.current = true
-    mapRef.current.fitBounds(bounds, {
-      padding: FIT_BOUNDS_PADDING_PX,
-      duration: FIT_BOUNDS_DURATION_MS,
-      maxZoom: 16,
-    })
-  }, [mapReady, markers, restaurantCoords])
-
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
@@ -413,6 +489,7 @@ export function MapboxMap({
       const el = popup.getElement()
       if (el && el.contains(target)) return
       if (target instanceof Element && target.closest('.mapbox-order-marker')) return
+      if (target instanceof Element && target.closest('.mapbox-courier-marker')) return
       if (Date.now() - popupOpenedAtRef.current < 200) return
       popup.remove()
       onMapBackgroundClickRef.current?.()
@@ -467,15 +544,32 @@ export function MapboxMap({
         .addTo(map)
       markersRef.current.push(mapMarker)
     })
-    updateMarkersByZoom(map, markersRef.current)
-    const onZoomEnd = () => updateMarkersByZoom(map, markersRef.current)
-    map.on('zoomend', onZoomEnd)
+    updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
     return () => {
-      map.off('zoomend', onZoomEnd)
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
     }
   }, [markers, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick])
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return
+    const map = mapRef.current
+    courierMarkersRef.current.forEach((m) => m.remove())
+    courierMarkersRef.current = []
+    courierMarkers.forEach((c) => {
+      const el = createCourierMarkerElement(c, onCourierMarkerClick)
+      const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
+        .setLngLat([c.lng, c.lat])
+        .setOffset([0, MARKER_OFFSET_FULL])
+        .addTo(map)
+      courierMarkersRef.current.push(mapMarker)
+    })
+    updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
+    return () => {
+      courierMarkersRef.current.forEach((m) => m.remove())
+      courierMarkersRef.current = []
+    }
+  }, [courierMarkers, mapReady, onCourierMarkerClick])
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
@@ -488,11 +582,8 @@ export function MapboxMap({
         .setLngLat([restaurantCoords.lng, restaurantCoords.lat])
         .addTo(map)
       restaurantMarkerRef.current = marker
-      updateRestaurantMarkerByZoom(map, marker)
-      const onZoomEnd = () => updateRestaurantMarkerByZoom(map, restaurantMarkerRef.current)
-      map.on('zoomend', onZoomEnd)
+      updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
       return () => {
-        map.off('zoomend', onZoomEnd)
         restaurantMarkerRef.current?.remove()
         restaurantMarkerRef.current = null
       }
@@ -502,6 +593,18 @@ export function MapboxMap({
       restaurantMarkerRef.current = null
     }
   }, [mapReady, restaurantCoords])
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return
+    const map = mapRef.current
+    const onZoomEnd = () => {
+      updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
+    }
+    map.on('zoomend', onZoomEnd)
+    return () => {
+      map.off('zoomend', onZoomEnd)
+    }
+  }, [mapReady])
 
   useDirectionsRoute({
     mapRef,
@@ -639,8 +742,19 @@ export function MapboxMap({
 
   const handleWrapperClick = (e: React.MouseEvent) => {
     if (mapViewMode !== 'none') return
-    if ((e.target as Node) instanceof Element && (e.target as Element).closest('.mapbox-map-view-selector')) return
+    if ((e.target as Node) instanceof Element && (e.target as Element).closest('.mapbox-map-controls')) return
     onMapViewModeChange?.('half')
+  }
+
+  const handleFocusRestaurant = () => {
+    if (!restaurantCoords || !mapRef.current || mapViewMode === 'none') return
+    mapRef.current.flyTo({
+      center: [restaurantCoords.lng, restaurantCoords.lat],
+      zoom: RESTAURANT_FOCUS_ZOOM,
+      duration: FLY_DURATION_MS,
+      curve: 0.35,
+      essential: true,
+    })
   }
 
   return (
@@ -672,20 +786,42 @@ export function MapboxMap({
           <img src={arrowLeftIconUrl} alt="" width={16} height={16} />
         </div>
       ) : null}
-      <div className="mapbox-map-view-selector" role="group" aria-label="Режим карты">
-        {MAP_VIEW_MODES.map(({ value, icon, title }) => (
+      <div className="mapbox-map-controls">
+        {restaurantCoords ? (
           <button
-            key={value}
             type="button"
-            className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
-            onClick={() => setMapViewMode(value)}
-            title={title}
-            aria-pressed={mapViewMode === value}
-            aria-label={title}
+            className="mapbox-map-focus-restaurant-btn"
+            onClick={handleFocusRestaurant}
+            title="Центрировать на ресторане"
+            aria-label="Центрировать на ресторане"
           >
-            <img src={icon} alt="" width={16} height={16} />
+            <img src={restaurantIconUrl} alt="" width={16} height={16} />
           </button>
-        ))}
+        ) : null}
+        <div className="mapbox-map-view-selector" role="group" aria-label="Режим карты">
+          {MAP_VIEW_MODES.map(({ value, icon, title }) => (
+            <button
+              key={value}
+              type="button"
+              className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
+              onClick={(e) => {
+                if (value === 'none') {
+                  const wrapper = (e.target as Element).closest('.mapbox-map-wrapper')
+                  if (wrapper) {
+                    const rect = wrapper.getBoundingClientRect()
+                    if (e.clientX < rect.left + 40) return
+                  }
+                }
+                setMapViewMode(value)
+              }}
+              title={title}
+              aria-pressed={mapViewMode === value}
+              aria-label={title}
+            >
+              <img src={icon} alt="" width={16} height={16} />
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
