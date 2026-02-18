@@ -92,6 +92,8 @@ type MapboxMapProps = {
   courierMarkers?: CourierMarkerItem[]
   /** Вызывается при клике по маркеру курьера (для подсветки карточки курьера) */
   onCourierMarkerClick?: (marker: CourierMarkerItem) => void
+  /** Скрыть селектор вида карты (для фулскрин-оверлея на мобильных) */
+  hideViewSelector?: boolean
 }
 
 export type MapViewMode = 'half' | 'none'
@@ -296,6 +298,7 @@ export function MapboxMap({
   onMapViewModeChange,
   courierMarkers = [],
   onCourierMarkerClick,
+  hideViewSelector = false,
 }: MapboxMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -798,30 +801,32 @@ export function MapboxMap({
             <img src={restaurantIconUrl} alt="" width={16} height={16} />
           </button>
         ) : null}
-        <div className="mapbox-map-view-selector" role="group" aria-label="Режим карты">
-          {MAP_VIEW_MODES.map(({ value, icon, title }) => (
-            <button
-              key={value}
-              type="button"
-              className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
-              onClick={(e) => {
-                if (value === 'none') {
-                  const wrapper = (e.target as Element).closest('.mapbox-map-wrapper')
-                  if (wrapper) {
-                    const rect = wrapper.getBoundingClientRect()
-                    if (e.clientX < rect.left + 40) return
+        {!hideViewSelector ? (
+          <div className="mapbox-map-view-selector" role="group" aria-label="Режим карты">
+            {MAP_VIEW_MODES.map(({ value, icon, title }) => (
+              <button
+                key={value}
+                type="button"
+                className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
+                onClick={(e) => {
+                  if (value === 'none') {
+                    const wrapper = (e.target as Element).closest('.mapbox-map-wrapper')
+                    if (wrapper) {
+                      const rect = wrapper.getBoundingClientRect()
+                      if (e.clientX < rect.left + 40) return
+                    }
                   }
-                }
-                setMapViewMode(value)
-              }}
-              title={title}
-              aria-pressed={mapViewMode === value}
-              aria-label={title}
-            >
-              <img src={icon} alt="" width={16} height={16} />
-            </button>
-          ))}
-        </div>
+                  setMapViewMode(value)
+                }}
+                title={title}
+                aria-pressed={mapViewMode === value}
+                aria-label={title}
+              >
+                <img src={icon} alt="" width={16} height={16} />
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   )

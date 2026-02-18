@@ -472,6 +472,7 @@ function DashboardScreen({
   const prevClientRouteIdsRef = useRef<Set<string>>(new Set())
   const didInitClientRoutesRef = useRef(false)
   const [mapViewMode, setMapViewMode] = useState<MapViewMode>('half')
+  const [isMobileMapOpen, setIsMobileMapOpen] = useState(false)
 
   const handleSendRouteClick = useCallback((routeId: string) => {
     setPendingSendRouteId(routeId)
@@ -826,7 +827,7 @@ function DashboardScreen({
 
   return (
     <div
-      className="dashboard"
+      className={`dashboard${isMobileMapOpen ? ' dashboard--map-overlay-open' : ''}`}
       ref={dashboardRef}
       onClickCapture={(e) => {
         if (resizerJustInteractedRef.current) {
@@ -835,6 +836,47 @@ function DashboardScreen({
         }
       }}
     >
+      <div className="map-floating-btn" aria-hidden="true">
+        <button
+          type="button"
+          className="map-floating-btn__btn"
+          onClick={() => setIsMobileMapOpen((prev) => !prev)}
+          aria-label={isMobileMapOpen ? 'Показать карточки' : 'Показать карту'}
+        >
+          {isMobileMapOpen ? 'Карточки' : 'Карта'}
+        </button>
+      </div>
+      {isMobileMapOpen ? (
+        <div className="mobile-map-overlay" role="dialog" aria-modal="true" aria-label="Карта">
+          <div className="mobile-map-overlay__map">
+            <MapWidget
+              orders={orders}
+              orderMarkers={orderMarkers}
+              courierMarkers={courierMarkers}
+              restaurantCoords={RESTAURANT_COORDS}
+              routePathCoords={routePathCoords}
+              isRouteDraft={!!(focusedRouteId && routes[focusedRouteId]?.status === 'draft')}
+              focusCoords={mapFocusCoords}
+              focusBounds={mapFocusBounds}
+              onClearFocus={() => {
+                setMapFocusCoords(null)
+                setMapFocusBounds(null)
+                setHighlightedOrderIdFromMap(null)
+                setHighlightedCourierIdFromMap(null)
+              }}
+              onOrderAddToRoute={handleOrderAddToRouteFromMap}
+              orderIdsInRoute={orderIdsInRoute}
+              onMarkerClick={handleMarkerClick}
+              onCourierMarkerClick={handleCourierMarkerClick}
+              onMapBackgroundClick={handleMapBackgroundClick}
+              routeFlashTrigger={routeFlashTrigger}
+              mapViewMode="half"
+              mapColumnWidthWhenVisible={undefined}
+              hideViewSelector
+            />
+          </div>
+        </div>
+      ) : null}
       <div className="dashboard__left-wrapper" ref={leftWrapperRef}>
         <div className="dashboard__left">
         <section className="dashboard__column">
@@ -1168,6 +1210,7 @@ export function MapWidget({
   mapViewMode,
   onMapViewModeChange,
   mapColumnWidthWhenVisible,
+  hideViewSelector,
 }: {
   orders: Record<string, Order>
   orderMarkers: OrderMarkerItem[]
@@ -1187,6 +1230,8 @@ export function MapWidget({
   mapViewMode?: MapViewMode
   onMapViewModeChange?: (mode: MapViewMode) => void
   mapColumnWidthWhenVisible?: number
+  /** Скрыть селектор вида карты (для фулскрин-оверлея на мобильных) */
+  hideViewSelector?: boolean
 }) {
   void _orders
   const isCollapsed = mapViewMode === 'none'
@@ -1205,22 +1250,23 @@ export function MapWidget({
         }
       >
         <MapboxMap
-        markers={orderMarkers}
-        courierMarkers={courierMarkers}
-        restaurantCoords={restaurantCoords ?? null}
-        routePathCoords={routePathCoords}
-        isRouteDraft={isRouteDraft ?? false}
-        focusCoords={focusCoords}
-        focusBounds={focusBounds}
-        onClearFocus={onClearFocus}
-        onOrderAddToRoute={onOrderAddToRoute}
-        orderIdsInRoute={orderIdsInRoute}
-        onMarkerClick={onMarkerClick}
-        onCourierMarkerClick={onCourierMarkerClick}
-        onMapBackgroundClick={onMapBackgroundClick}
-        routeFlashTrigger={routeFlashTrigger ?? null}
-        mapViewMode={mapViewMode}
+          markers={orderMarkers}
+          courierMarkers={courierMarkers}
+          restaurantCoords={restaurantCoords ?? null}
+          routePathCoords={routePathCoords}
+          isRouteDraft={isRouteDraft ?? false}
+          focusCoords={focusCoords}
+          focusBounds={focusBounds}
+          onClearFocus={onClearFocus}
+          onOrderAddToRoute={onOrderAddToRoute}
+          orderIdsInRoute={orderIdsInRoute}
+          onMarkerClick={onMarkerClick}
+          onCourierMarkerClick={onCourierMarkerClick}
+          onMapBackgroundClick={onMapBackgroundClick}
+          routeFlashTrigger={routeFlashTrigger ?? null}
+          mapViewMode={mapViewMode}
           onMapViewModeChange={onMapViewModeChange}
+          hideViewSelector={hideViewSelector}
         />
       </div>
     </div>
@@ -1937,7 +1983,7 @@ function RouteDeliveryCard({
           }}
           aria-label="Редактировать маршрут"
         >
-          <img src={editIcon} alt="" width={16} height={16} aria-hidden />
+          <img src={editIcon} alt="" width={12} height={12} aria-hidden />
         </button>
       ) : null}
       <div className="card__row">
