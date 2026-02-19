@@ -8,7 +8,6 @@ import { RoutesColumn } from '../entities/RoutesColumn'
 
 export type DashboardLeftPanelProps = {
   leftWrapperRef: RefObject<HTMLDivElement | null>
-  onLeftPanelClick: (e: React.MouseEvent) => void
   courierList: Courier[]
   unassignedOrdersCount: number
   ordersReady: Order[]
@@ -51,7 +50,6 @@ export type DashboardLeftPanelProps = {
 
 export function DashboardLeftPanel({
   leftWrapperRef,
-  onLeftPanelClick,
   courierList,
   unassignedOrdersCount,
   ordersReady,
@@ -93,7 +91,7 @@ export function DashboardLeftPanel({
 }: DashboardLeftPanelProps) {
   return (
     <div className="dashboard__left-wrapper" ref={leftWrapperRef}>
-      <div className="dashboard__left" onClick={onLeftPanelClick} role="presentation">
+      <div className="dashboard__left">
         <section className="dashboard__column">
           <div className="column__title">Курьеры{courierList.length > 0 && <span className="column__title-count">{courierList.length}</span>}</div>
           <CouriersColumn

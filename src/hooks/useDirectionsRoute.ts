@@ -84,54 +84,6 @@ function findClosestPointIndex(
 }
 
 /**
- * Плавно прорисовывает линию маршрута от начала к концу за durationMs.
- * Возвращает функцию отмены анимации.
- */
-function animateRouteLine(
-  map: MapboxMapInstance,
-  geometry: GeoJSON.LineString,
-  durationMs: number,
-): () => void {
-  const source = map.getSource('route') as mapboxgl.GeoJSONSource | undefined
-  if (!source || geometry.coordinates.length < 2) return () => {}
-
-  const coords = geometry.coordinates
-  const totalPoints = coords.length
-  const startTime = performance.now()
-  let rafId: number
-
-  const fullData: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-    type: 'FeatureCollection',
-    features: [{ type: 'Feature', properties: {}, geometry }],
-  }
-
-  const tick = (time: number) => {
-    const elapsed = time - startTime
-    const progress = Math.min(elapsed / durationMs, 1)
-    const numPoints = Math.max(2, Math.round(progress * totalPoints))
-    const partialCoords = coords.slice(0, numPoints)
-    source.setData({
-      type: 'FeatureCollection',
-      features: [
-        {
-          type: 'Feature',
-          properties: {},
-          geometry: { type: 'LineString', coordinates: partialCoords },
-        },
-      ],
-    })
-    if (progress < 1) {
-      rafId = requestAnimationFrame(tick)
-    } else {
-      source.setData(fullData)
-    }
-  }
-
-  rafId = requestAnimationFrame(tick)
-  return () => cancelAnimationFrame(rafId)
-}
-
-/**
  * Показывает уже построенный участок (baseCoords) и анимирует только новый (от splitIndex до конца).
  * Возвращает функцию отмены анимации.
  */
@@ -210,6 +162,8 @@ type UseDirectionsRouteParams = {
   mapRef: React.RefObject<MapboxMapInstance | null>
   mapReady: boolean
   routePathCoords: RoutePathCoord[] | null
+  /** Фокус на маршруте (карточка/маркер) — линию очищаем только когда false */
+  showRouteFocus?: boolean
   accessToken: string | undefined
   /** При false линия маршрута показывается сразу, без анимации прорисовки (для назначенных/активных маршрутов) */
   animateLine?: boolean
@@ -223,6 +177,7 @@ export function useDirectionsRoute({
   mapRef,
   mapReady,
   routePathCoords,
+  showRouteFocus = false,
   accessToken,
   animateLine = true,
 }: UseDirectionsRouteParams): void {
@@ -251,7 +206,7 @@ export function useDirectionsRoute({
       lastCoordsRef.current = null
       cancelAnimationRef.current?.()
       cancelAnimationRef.current = null
-      setRouteSourceData(map, null)
+      if (!showRouteFocus) setRouteSourceData(map, null)
       return
     }
 
@@ -267,24 +222,20 @@ export function useDirectionsRoute({
       cancelAnimationRef.current = null
       const cached = cacheRef.current[key]
       if (cached) {
-        if (animateLine) {
-          if (isExtension) {
-            const prevLastWaypoint = coords[coords.length - 2]
-            const coordsArr = cached.coordinates as [number, number][]
-            const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
-            cancelAnimationRef.current = animateRouteLineExtension(
-              map,
-              coordsArr,
-              splitIndex,
-              ROUTE_ANIMATION_DURATION_MS,
-            )
-          } else {
-            cancelAnimationRef.current = animateRouteLine(
-              map,
-              cached,
-              ROUTE_ANIMATION_DURATION_MS,
-            )
-          }
+        if (lastCoordsKeyRef.current === key) {
+          fitMapToRoute(map, coords)
+          return
+        }
+        if (animateLine && isExtension) {
+          const prevLastWaypoint = coords[coords.length - 2]
+          const coordsArr = cached.coordinates as [number, number][]
+          const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
+          cancelAnimationRef.current = animateRouteLineExtension(
+            map,
+            coordsArr,
+            splitIndex,
+            ROUTE_ANIMATION_DURATION_MS,
+          )
         } else {
           setRouteSourceData(map, cached)
         }
@@ -297,24 +248,16 @@ export function useDirectionsRoute({
         const geometry = await fetchDirections(accessToken, coords)
         if (geometry) {
           cacheRef.current[key] = geometry
-          if (animateLine) {
-            if (isExtension) {
-              const prevLastWaypoint = coords[coords.length - 2]
-              const coordsArr = geometry.coordinates as [number, number][]
-              const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
-              cancelAnimationRef.current = animateRouteLineExtension(
-                map,
-                coordsArr,
-                splitIndex,
-                ROUTE_ANIMATION_DURATION_MS,
-              )
-            } else {
-              cancelAnimationRef.current = animateRouteLine(
-                map,
-                geometry,
-                ROUTE_ANIMATION_DURATION_MS,
-              )
-            }
+          if (animateLine && isExtension) {
+            const prevLastWaypoint = coords[coords.length - 2]
+            const coordsArr = geometry.coordinates as [number, number][]
+            const splitIndex = findClosestPointIndex(coordsArr, prevLastWaypoint)
+            cancelAnimationRef.current = animateRouteLineExtension(
+              map,
+              coordsArr,
+              splitIndex,
+              ROUTE_ANIMATION_DURATION_MS,
+            )
           } else {
             setRouteSourceData(map, geometry)
           }
@@ -331,7 +274,14 @@ export function useDirectionsRoute({
     }
 
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
-    debounceTimerRef.current = setTimeout(apply, DEBOUNCE_MS)
+    debounceTimerRef.current = null
+
+    const hasCached = cacheRef.current[key]
+    if (hasCached) {
+      apply()
+    } else {
+      debounceTimerRef.current = setTimeout(apply, DEBOUNCE_MS)
+    }
 
     return () => {
       if (debounceTimerRef.current) {
@@ -341,7 +291,7 @@ export function useDirectionsRoute({
       cancelAnimationRef.current?.()
       cancelAnimationRef.current = null
     }
-  }, [mapRef, mapReady, routePathKey, accessToken, animateLine])
+  }, [mapRef, mapReady, routePathKey, showRouteFocus, accessToken, animateLine])
 }
 
 export { emptyRouteGeoJSON, setRouteSourceData }

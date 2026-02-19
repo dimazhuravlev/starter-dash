@@ -20,9 +20,11 @@ export function MapWidget({
   courierMarkers = [],
   restaurantCoords,
   routePathCoords,
+  showRouteFocus = false,
   isRouteDraft,
   focusCoords,
   focusBounds,
+  clearFocusOnMoveEnd,
   onClearFocus,
   onOrderAddToRoute,
   orderIdsInRoute,
@@ -40,9 +42,12 @@ export function MapWidget({
   courierMarkers?: CourierMarkerItem[]
   restaurantCoords?: { lat: number; lng: number } | null
   routePathCoords: { lng: number; lat: number }[] | null
+  showRouteFocus?: boolean
   isRouteDraft?: boolean
   focusCoords: { lat: number; lng: number } | null
   focusBounds: { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } } | null
+  /** При false не сбрасывать фокус по moveend (линия маршрута остаётся видимой) */
+  clearFocusOnMoveEnd?: boolean
   onClearFocus: () => void
   onOrderAddToRoute?: (orderId: string) => void
   orderIdsInRoute?: string[]
@@ -77,9 +82,11 @@ export function MapWidget({
           courierMarkers={courierMarkers}
           restaurantCoords={restaurantCoords ?? null}
           routePathCoords={routePathCoords}
+          showRouteFocus={showRouteFocus}
           isRouteDraft={isRouteDraft ?? false}
           focusCoords={focusCoords}
           focusBounds={focusBounds}
+          clearFocusOnMoveEnd={clearFocusOnMoveEnd}
           onClearFocus={onClearFocus}
           onOrderAddToRoute={onOrderAddToRoute}
           orderIdsInRoute={orderIdsInRoute}

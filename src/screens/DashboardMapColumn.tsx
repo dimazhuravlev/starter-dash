@@ -95,9 +95,11 @@ export function DashboardMapColumn({
           courierMarkers={courierMarkers}
           restaurantCoords={restaurantCoords}
           routePathCoords={routePathCoords}
+          showRouteFocus={!!focusedRouteId}
           isRouteDraft={!!(focusedRouteId && routes[focusedRouteId]?.status === 'draft')}
           focusCoords={mapFocusCoords}
           focusBounds={mapFocusBounds}
+          clearFocusOnMoveEnd={!focusedRouteId}
           onClearFocus={onClearFocus}
           onOrderAddToRoute={onOrderAddToRoute}
           orderIdsInRoute={orderIdsInRoute}

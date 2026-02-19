@@ -5,6 +5,37 @@ const MIN_RIGHT_WIDTH = 200
 const RESIZER_WIDTH = 12
 const MAX_RIGHT_WIDTH_RATIO = 0.8
 const RIGHT_COLUMN_MARGIN = 16
+const STORAGE_KEY = 'dashboard-right-column-width'
+const WIDTH_SNAP_PX = 10
+
+function getStoredRightColumnWidth(): number | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (raw == null) return null
+    const n = parseInt(raw, 10)
+    if (!Number.isFinite(n) || n < MIN_RIGHT_WIDTH) return null
+    return n
+  } catch {
+    return null
+  }
+}
+
+function persistRightColumnWidth(w: number) {
+  try {
+    localStorage.setItem(STORAGE_KEY, String(w))
+  } catch {
+    // ignore
+  }
+}
+
+function computeDefaultRightWidth(totalWidth: number): number {
+  if (!totalWidth) return MIN_RIGHT_WIDTH
+  const baseColumnWidth = (totalWidth - RESIZER_WIDTH - RIGHT_COLUMN_MARGIN) / 6
+  const defaultRight = baseColumnWidth * 2
+  const maxRight = Math.min(totalWidth - RESIZER_WIDTH, totalWidth * MAX_RIGHT_WIDTH_RATIO)
+  const clamped = Math.max(MIN_RIGHT_WIDTH, Math.min(defaultRight, maxRight))
+  return Math.round(clamped / WIDTH_SNAP_PX) * WIDTH_SNAP_PX
+}
 
 export function useDashboardResize(isMobileMapOpen: boolean) {
   const dashboardRef = useRef<HTMLDivElement | null>(null)
@@ -17,7 +48,7 @@ export function useDashboardResize(isMobileMapOpen: boolean) {
   const resizeDragStartedRef = useRef(false)
   const resizerInitialListenersCleanupRef = useRef<(() => void) | null>(null)
 
-  const [rightColumnWidth, setRightColumnWidth] = useState<number | null>(null)
+  const [rightColumnWidth, setRightColumnWidth] = useState<number | null>(getStoredRightColumnWidth)
   const [dashboardWidth, setDashboardWidth] = useState<number | null>(null)
   const [isResizing, setIsResizing] = useState(false)
   const [isUserResized, setIsUserResized] = useState(false)
@@ -44,13 +75,32 @@ export function useDashboardResize(isMobileMapOpen: boolean) {
     syncLeftWrapperScroll()
   }, [isMobileMapOpen, syncLeftWrapperScroll])
 
+  useLayoutEffect(() => {
+    const dashboard = dashboardRef.current
+    if (!dashboard) return
+    const w = dashboard.getBoundingClientRect().width
+    setDashboardWidth(w)
+    const maxRight = Math.min(w - RESIZER_WIDTH, w * MAX_RIGHT_WIDTH_RATIO)
+    setRightColumnWidth((prev) => {
+      if (prev != null) {
+        if (prev <= maxRight) return prev
+        const clamped = Math.max(MIN_RIGHT_WIDTH, Math.min(prev, maxRight))
+        const snapped = Math.round(clamped / WIDTH_SNAP_PX) * WIDTH_SNAP_PX
+        persistRightColumnWidth(snapped)
+        return snapped
+      }
+      const defaultW = computeDefaultRightWidth(w)
+      persistRightColumnWidth(defaultW)
+      return defaultW
+    })
+  }, [])
+
   useEffect(() => {
     const dashboard = dashboardRef.current
     if (!dashboard) return
     const updateWidth = () => {
       setDashboardWidth(dashboard.getBoundingClientRect().width)
     }
-    updateWidth()
     const ro = new ResizeObserver(updateWidth)
     ro.observe(dashboard)
     return () => ro.disconnect()
@@ -62,11 +112,9 @@ export function useDashboardResize(isMobileMapOpen: boolean) {
       const dashboard = dashboardRef.current
       if (!dashboard) return
       const totalWidth = dashboard.getBoundingClientRect().width
-      if (!totalWidth) return
-      const baseColumnWidth = (totalWidth - RESIZER_WIDTH - RIGHT_COLUMN_MARGIN) / 6
-      const defaultRight = Math.floor(baseColumnWidth * 2)
-      const maxRight = Math.min(totalWidth - RESIZER_WIDTH, totalWidth * MAX_RIGHT_WIDTH_RATIO)
-      setRightColumnWidth(Math.max(MIN_RIGHT_WIDTH, Math.min(defaultRight, maxRight)))
+      const defaultW = computeDefaultRightWidth(totalWidth)
+      setRightColumnWidth(defaultW)
+      persistRightColumnWidth(defaultW)
     }
     updateDefaultWidth()
     window.addEventListener('resize', updateDefaultWidth)
@@ -98,8 +146,9 @@ export function useDashboardResize(isMobileMapOpen: boolean) {
       const rightEl = rightColumnRef.current
       if (rightEl) {
         const currentWidth = rightEl.getBoundingClientRect().width - RESIZER_WIDTH
-        const width = Math.round(Math.max(MIN_RIGHT_WIDTH, currentWidth))
+        const width = Math.round(Math.max(MIN_RIGHT_WIDTH, currentWidth) / WIDTH_SNAP_PX) * WIDTH_SNAP_PX
         setRightColumnWidth(width)
+        persistRightColumnWidth(width)
         rightEl.style.width = ''
       }
       setIsResizing(false)

@@ -34,6 +34,10 @@ export function useDashboardMapFocus({
   }, [highlightedOrderIdFromMap])
   const [mapFocusBounds, setMapFocusBounds] = useState<MapFocusBounds | null>(null)
   const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null)
+  /** Координаты линии маршрута — задаём в момент фокуса (карточка/маркер), один источник правды */
+  const [focusedRoutePathCoords, setFocusedRoutePathCoords] = useState<
+    { lng: number; lat: number }[] | null
+  >(null)
   const [mapViewMode, setMapViewMode] = useState<MapViewMode>('half')
 
   const focusMapOnRoute = useCallback((routeId: string) => {
@@ -47,7 +51,8 @@ export function useDashboardMapFocus({
       .map((id) => state.orders[id]?.coords)
       .filter((c): c is { lat: number; lng: number } => c != null)
     if (orderCoords.length === 0) return
-    const coords = [RESTAURANT_COORDS, ...orderCoords]
+    const coords = [RESTAURANT_COORDS, ...orderCoords].map((c) => ({ lng: c.lng, lat: c.lat }))
+    setFocusedRoutePathCoords(coords)
     setMapFocusCoords(null)
     const lngs = coords.map((c) => c.lng)
     const lats = coords.map((c) => c.lat)
@@ -68,6 +73,7 @@ export function useDashboardMapFocus({
       } else {
         setFocusedRouteId(null)
         setMapFocusBounds(null)
+        setFocusedRoutePathCoords(null)
         if (highlightedOrderIdFromMapRef.current === marker.id) {
           setHighlightedOrderIdFromMap(null)
           requestAnimationFrame(() => {
@@ -94,6 +100,7 @@ export function useDashboardMapFocus({
       requestAnimationFrame(() => {
         setFocusedRouteId(null)
         setMapFocusBounds(null)
+        setFocusedRoutePathCoords(null)
       })
     }
   }, [focusedRouteId, routes, orders])
@@ -103,19 +110,14 @@ export function useDashboardMapFocus({
     setHighlightedCourierIdFromMap(null)
     setFocusedRouteId(null)
     setMapFocusBounds(null)
-  }, [])
-
-  const handleLeftPanelClick = useCallback((e: React.MouseEvent) => {
-    const target = e.target instanceof Element ? e.target : null
-    if (target?.closest('.card') || target?.closest('button') || target?.closest('a')) return
-    setFocusedRouteId(null)
-    setMapFocusBounds(null)
+    setFocusedRoutePathCoords(null)
   }, [])
 
   const handleCourierMarkerClick = useCallback((marker: CourierMarkerItem) => {
     setHighlightedCourierIdFromMap((prev) => (prev === marker.id ? null : marker.id))
     setFocusedRouteId(null)
     setMapFocusBounds(null)
+    setFocusedRoutePathCoords(null)
     setMapFocusCoords({ lat: marker.lat, lng: marker.lng })
   }, [])
 
@@ -124,6 +126,7 @@ export function useDashboardMapFocus({
       if (mapViewMode === 'none') return
       setFocusedRouteId(null)
       setMapFocusBounds(null)
+      setFocusedRoutePathCoords(null)
       setMapFocusCoords(coords)
     },
     [mapViewMode],
@@ -134,6 +137,7 @@ export function useDashboardMapFocus({
       if (mapViewMode === 'none') return
       setFocusedRouteId(null)
       setMapFocusBounds(null)
+      setFocusedRoutePathCoords(null)
       setMapFocusCoords(coords)
     },
     [mapViewMode],
@@ -161,6 +165,7 @@ export function useDashboardMapFocus({
   const handleMapClearFocus = useCallback(() => {
     setMapFocusCoords(null)
     setMapFocusBounds(null)
+    setFocusedRoutePathCoords(null)
     setHighlightedOrderIdFromMap(null)
     setHighlightedCourierIdFromMap(null)
   }, [])
@@ -169,13 +174,13 @@ export function useDashboardMapFocus({
     mapFocusCoords,
     mapFocusBounds,
     focusedRouteId,
+    focusedRoutePathCoords,
     highlightedOrderIdFromMap,
     highlightedCourierIdFromMap,
     mapViewMode,
     focusMapOnRoute,
     handleMarkerClick,
     handleMapBackgroundClick,
-    handleLeftPanelClick,
     handleCourierMarkerClick,
     handleOrderCardClick,
     handleCourierCardClick,

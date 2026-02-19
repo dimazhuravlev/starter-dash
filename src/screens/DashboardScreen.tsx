@@ -85,13 +85,13 @@ export function DashboardScreen({
     mapFocusCoords,
     mapFocusBounds,
     focusedRouteId,
+    focusedRoutePathCoords,
     highlightedOrderIdFromMap,
     highlightedCourierIdFromMap,
     mapViewMode,
     focusMapOnRoute,
     handleMarkerClick,
     handleMapBackgroundClick,
-    handleLeftPanelClick,
     handleCourierMarkerClick,
     handleOrderCardClick,
     handleCourierCardClick,
@@ -155,7 +155,7 @@ export function DashboardScreen({
   const ordersCooking = unassignedOrders.filter((order) => order.status === 'cooking')
   const ordersReady = unassignedOrders.filter((order) => order.status === 'ready')
 
-  const { orderMarkers, courierMarkers, routePathCoords, orderIdsInRoute } = useDashboardMapData({
+  const { orderMarkers, courierMarkers, routePathCoords: routePathCoordsFromData, orderIdsInRoute } = useDashboardMapData({
     orders,
     routes,
     couriers,
@@ -166,6 +166,7 @@ export function DashboardScreen({
     routeStageMin,
     restaurantCoords: RESTAURANT_COORDS,
   })
+  const routePathCoords = focusedRoutePathCoords ?? routePathCoordsFromData
 
   useLayoutEffect(() => {
     const currentIds = new Set(clientRoutes.map((r) => r.id))
@@ -217,7 +218,6 @@ export function DashboardScreen({
       />
       <DashboardLeftPanel
         leftWrapperRef={leftWrapperRef}
-        onLeftPanelClick={handleLeftPanelClick}
         courierList={courierList}
         unassignedOrdersCount={unassignedOrders.length}
         ordersReady={ordersReady}

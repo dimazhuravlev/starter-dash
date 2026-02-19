@@ -75,10 +75,14 @@ type MapboxMapProps = {
   restaurantCoords?: { lat: number; lng: number } | null
   /** Ordered coords for driving route (2+ to show route). When null or length < 2, route is hidden. */
   routePathCoords?: RoutePathCoord[] | null
+  /** Фокус на маршруте (клик по карточке или маркеру) — линию очищаем только когда false */
+  showRouteFocus?: boolean
   /** Маршрут в режиме черновика — линия пульсирует (opacity 1 → 0.6 → 1) */
   isRouteDraft?: boolean
   focusCoords?: { lat: number; lng: number } | null
   focusBounds?: MapFocusBounds | null
+  /** При false не вызывать onClearFocus по moveend (чтобы линия маршрута не исчезала после fitBounds) */
+  clearFocusOnMoveEnd?: boolean
   onClearFocus?: () => void
   /** При клике на «Добавить в маршрут» в попапе маркера — добавить заказ в черновик (orderId) */
   onOrderAddToRoute?: (orderId: string) => void
@@ -298,9 +302,11 @@ export function MapboxMap({
   markers = [],
   restaurantCoords = null,
   routePathCoords = null,
+  showRouteFocus = false,
   isRouteDraft = false,
   focusCoords,
   focusBounds,
+  clearFocusOnMoveEnd = true,
   onClearFocus,
   onOrderAddToRoute,
   orderIdsInRoute,
@@ -485,15 +491,18 @@ export function MapboxMap({
       ],
       { padding: FIT_BOUNDS_PADDING_PX, duration: FIT_BOUNDS_DURATION_MS, maxZoom: 16 },
     )
-    const onMoveEnd = () => {
-      if (!cancelled) onClearFocusRef.current?.()
+    if (clearFocusOnMoveEnd) {
+      const onMoveEnd = () => {
+        if (!cancelled) onClearFocusRef.current?.()
+      }
+      map.once('moveend', onMoveEnd)
+      return () => {
+        cancelled = true
+        map.off('moveend', onMoveEnd)
+      }
     }
-    map.once('moveend', onMoveEnd)
-    return () => {
-      cancelled = true
-      map.off('moveend', onMoveEnd)
-    }
-  }, [mapViewMode, focusBounds])
+    return undefined
+  }, [mapViewMode, focusBounds, clearFocusOnMoveEnd])
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
@@ -506,7 +515,6 @@ export function MapboxMap({
       if (popupRef.current) {
         popupRef.current.remove()
         popupMarkerIdRef.current = null
-        onMapBackgroundClickRef.current?.()
       }
     }
 
@@ -519,6 +527,8 @@ export function MapboxMap({
       if (target instanceof Element && target.closest('.mapbox-courier-marker')) return
       if (Date.now() - popupOpenedAtRef.current < 200) return
       closePopupIfOpen()
+      // Клик по фону карты — сбрасываем маршрут (линия скрывается), как у маркеров
+      onMapBackgroundClickRef.current?.()
     }
     map.on('click', onMapClick)
 
@@ -576,7 +586,6 @@ export function MapboxMap({
       if (popupRef.current && popupMarkerIdRef.current === m.id) {
         popupRef.current.remove()
         popupMarkerIdRef.current = null
-        onMapBackgroundClickRef.current?.()
         return
       }
       if (onOrderAddToRoute && !orderIdsInRouteSet?.has(m.id) && !m.isDelivered) openPopup(m)
@@ -677,6 +686,7 @@ export function MapboxMap({
     mapRef,
     mapReady,
     routePathCoords: routePathCoords ?? null,
+    showRouteFocus,
     accessToken: mapboxToken ?? undefined,
     animateLine: isRouteDraft,
   })
