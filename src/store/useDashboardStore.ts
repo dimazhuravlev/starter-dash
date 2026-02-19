@@ -1,14 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { type Courier, type CourierType, type Order, type Route } from '../model/types'
-import { createSeedOrders, step, type DashboardState } from './simulation'
-import {
-  MINUTE_MS,
-  ORDER_CREATE_INTERVAL_MIN,
-  ORDER_SLA_OPTIONS_MIN,
-  ORDER_STAGE_MIN,
-  ROUTE_STAGE_MIN,
-} from '../model/rules'
+import { type Order, type Route } from '../model/types'
+import { type OrderStageMin, type RouteStageMin } from '../model/rules'
+import { step, type DashboardState } from './simulation'
+import { buildSeedState } from './seedState'
 
 type DashboardActions = {
   tick: (deltaMs: number) => void
@@ -24,96 +19,10 @@ type DashboardActions = {
   sendRoute: (routeId: string) => void
   revertRouteToDraft: (routeId: string) => void
   resetSeed: () => void
-  setOrderStageMin: (stage: keyof typeof ORDER_STAGE_MIN, value: number) => void
+  setOrderStageMin: (stage: keyof OrderStageMin, value: number) => void
   setOrderSlaOption: (index: number, value: number) => void
-  setRouteStageMin: (stage: keyof typeof ROUTE_STAGE_MIN, value: number) => void
+  setRouteStageMin: (stage: keyof RouteStageMin, value: number) => void
   setOrderCreateIntervalMin: (value: number) => void
-}
-
-const courierNames = [
-  'Скороходов Павел',
-  'Шалимов Пётр',
-  'Егоров Александр',
-  'Польский Илья',
-  'Пак Константин',
-  'Гринько Екатерина',
-]
-
-const COURIER_TYPES: CourierType[] = ['pedestrian', 'bike', 'car']
-
-/** Случайные координаты в границах Санкт-Петербурга */
-function getRandomCoordsInSpb(): { lat: number; lng: number } {
-  return {
-    lat: 59.85 + Math.random() * 0.15,
-    lng: 30.15 + Math.random() * 0.4,
-  }
-}
-
-type DashboardSettings = Pick<
-  DashboardState,
-  'speed' | 'orderCreateIntervalMin' | 'orderStageMin' | 'orderSlaOptionsMin' | 'routeStageMin'
->
-
-const resolveSettings = (settings?: Partial<DashboardSettings>): DashboardSettings => ({
-  speed: settings?.speed ?? 3,
-  orderCreateIntervalMin: settings?.orderCreateIntervalMin ?? ORDER_CREATE_INTERVAL_MIN,
-  orderStageMin: {
-    ...ORDER_STAGE_MIN,
-    ...(settings?.orderStageMin ?? {}),
-  },
-  orderSlaOptionsMin:
-    settings?.orderSlaOptionsMin !== undefined
-      ? [...settings.orderSlaOptionsMin]
-      : [...ORDER_SLA_OPTIONS_MIN],
-  routeStageMin: {
-    ...ROUTE_STAGE_MIN,
-    ...(settings?.routeStageMin ?? {}),
-  },
-})
-
-const getRandomFreeSince = (now: number) => now - Math.random() * 9 * MINUTE_MS
-
-const buildSeedState = (settings?: Partial<DashboardSettings>): DashboardState => {
-  const now = Date.now()
-  const couriers: Record<string, Courier> = {}
-  const resolvedSettings = resolveSettings(settings)
-
-  courierNames.forEach((name, index) => {
-    const courierId = `courier_${index + 1}`
-    couriers[courierId] = {
-      id: courierId,
-      name,
-      type: COURIER_TYPES[index % COURIER_TYPES.length],
-      status: 'free',
-      freeSince: getRandomFreeSince(now),
-      coords: getRandomCoordsInSpb(),
-    }
-  })
-
-  const { orders, nextOrderId } = createSeedOrders({
-    now,
-    nextOrderId: 1,
-    orderStageMin: resolvedSettings.orderStageMin,
-    orderSlaOptionsMin: resolvedSettings.orderSlaOptionsMin,
-    routeStageMin: resolvedSettings.routeStageMin,
-  })
-  const routes: Record<string, Route> = {}
-
-  return {
-    now,
-    isRunning: true,
-    speed: resolvedSettings.speed,
-    orders,
-    couriers,
-    routes,
-    lastOrderCreatedAt: now,
-    nextOrderId,
-    nextRouteId: 1,
-    orderCreateIntervalMin: resolvedSettings.orderCreateIntervalMin,
-    orderStageMin: resolvedSettings.orderStageMin,
-    orderSlaOptionsMin: resolvedSettings.orderSlaOptionsMin,
-    routeStageMin: resolvedSettings.routeStageMin,
-  }
 }
 
 export const useDashboardStore = create<DashboardState & DashboardActions>()(

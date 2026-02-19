@@ -1,0 +1,52 @@
+/* Кнопка «Карта» — скрыта на ширине > 768px */
+.map-floating-btn {
+  display: none;
+}
+
+/* Оверлей карты на планшетах/мобильных: фрейм в края экрана с отступом 8px */
+.mobile-map-overlay {
+  position: fixed;
+  inset: 8px;
+  z-index: 100;
+  background: var(--bg);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mobile-map-overlay__map {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  /* Кнопка «Карта»: ≤768px — по правому краю с отступом 16px */
+  .map-floating-btn {
+    display: block;
+    position: fixed;
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    transform: none;
+    z-index: 110;
+  }
+
+  .map-floating-btn__btn {
+    display: inline-flex;
+    height: 40px;
+    padding: 0 24px;
+    justify-content: center;
+    align-items: center;
+    border-radius: 40px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: linear-gradient(0deg, #FAFAFA 0%, #FFF 100%);
+    box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+    color: #1a1a1a;
+    font-family: Pretendard, sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: default;
+  }
+}

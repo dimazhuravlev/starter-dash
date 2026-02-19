@@ -1,0 +1,393 @@
+.route-draft__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.route-draft__header-left {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  min-width: 0;
+  flex: 1;
+  width: 100%;
+}
+
+.route-draft__placeholder {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.route-draft__placeholder--block {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.route-draft__placeholder--empty {
+  display: flex;
+  padding: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  align-self: stretch;
+  background: transparent;
+  color: hsla(0, 0%, 100%, 0.4);
+}
+
+.route-draft__header .route-draft__placeholder--empty {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 8px 0 0;
+}
+
+/* Иконка в шапке (Plus или кнопка Cross) — фиксированный размер 20×20, без сдвига при смене */
+.route-draft__header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.route-draft__header .route-draft__remove--small {
+  flex-shrink: 0;
+}
+
+.route-draft__orders .route-draft__placeholder--empty {
+  margin-top: 6px;
+  min-height: 36px;
+  border-radius: 8px;
+  border: 1.5px dashed rgba(255, 255, 255, 0.10);
+  box-sizing: border-box;
+  transition: border-color 300ms ease;
+}
+
+.route-draft__orders .route-draft__placeholder--empty:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.route-draft__placeholder--empty .route-draft__plus-icon {
+  opacity: 0.4;
+  transition: opacity 300ms ease;
+}
+
+.route-draft__placeholder--empty:hover .route-draft__plus-icon {
+  opacity: 0.7;
+}
+
+.route-draft__plus-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.route-draft__placeholder-text {
+  color: hsla(0, 0%, 100%, 0.4);
+  font-family: Pretendard, sans-serif;
+  font-style: normal;
+  font-weight: 600;
+  transition: color 300ms ease;
+}
+
+.route-draft__placeholder--empty:hover .route-draft__placeholder-text {
+  color: hsla(0, 0%, 100%, 0.7);
+}
+
+/* При перетаскивании курьера на карточку маршрута — тот же эффект, что при ховере */
+.card--drag-over-courier .route-draft__header .route-draft__placeholder--empty .route-draft__plus-icon {
+  opacity: 0.7;
+}
+.card--drag-over-courier .route-draft__header .route-draft__placeholder--empty .route-draft__placeholder-text {
+  color: hsla(0, 0%, 100%, 0.7);
+}
+
+/* При перетаскивании заказа на карточку маршрута — тот же эффект, что при ховере */
+.card--drag-over-order .route-draft__orders .route-draft__placeholder--empty .route-draft__plus-icon {
+  opacity: 0.7;
+}
+.card--drag-over-order .route-draft__orders .route-draft__placeholder--empty .route-draft__placeholder-text {
+  color: hsla(0, 0%, 100%, 0.7);
+}
+.card--drag-over-order .route-draft__orders .route-draft__placeholder--empty {
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.route-draft__header .route-draft__placeholder-text {
+  font-size: 14px;
+  line-height: 16px;
+}
+
+.route-draft__courier-name {
+  color: #fff;
+  font-family: Pretendard, sans-serif;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.route-draft__orders .route-draft__placeholder-text {
+  color: rgba(255, 255, 255, 0.40);
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.route-draft__select {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  appearance: none;
+}
+
+.route-draft__orders {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.route-draft__orders > .route-draft__placeholder--empty:first-child {
+  margin-top: 0;
+}
+
+.route-draft__merger {
+  margin-left: 16px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+  height: 6px;
+  transition: height 400ms ease;
+}
+
+.route-draft__merger img {
+  display: block;
+}
+
+.route-draft__merger svg {
+  display: block;
+  height: 100%;
+  width: 14px;
+}
+
+/* При перетаскивании заказа — плавно растягиваем высоту merger (место вставки) */
+.route-draft__merger--drop-target {
+  height: 18px;
+}
+
+.route-draft__order {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #34373C;
+}
+
+.route-draft__order::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.route-draft__order--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
+}
+
+.route-draft__order .sla-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  flex-shrink: 0;
+}
+
+.route-draft__order--overdue {
+  background: #570F27;
+}
+
+.route-draft__order-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding-right: 48px;
+}
+
+.route-draft__order-title {
+  color: #FFF;
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.route-draft__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  line-height: 1;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.route-draft__remove--small {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+  background: transparent;
+  border-radius: 0;
+}
+
+.route-draft__remove--small img {
+  opacity: 0.4;
+}
+
+.route-draft__remove--small:focus {
+  outline: none;
+}
+
+.route-draft__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  padding-top: 8px;
+}
+
+.route-draft__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-family: Pretendard;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.route-draft__action--icon {
+  position: relative;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  justify-content: center;
+  align-items: center;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+}
+
+.route-draft__action--icon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+.route-draft__action--icon:hover::before {
+  opacity: 1;
+}
+
+.route-draft__action--icon img {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.route-draft__action--add {
+  width: auto;
+  height: auto;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.route-draft__action--add:focus {
+  outline: none;
+}
+
+.route-draft__action--add img {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+.route-draft__action--primary {
+  display: flex;
+  height: 32px;
+  padding: 0 12px;
+  justify-content: center;
+  align-items: center;
+  border-radius: 40px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(0deg, #FAFAFA 0%, #FFF 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  color: #272725;
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  transition: opacity 200ms ease;
+}
+
+.route-draft__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.route-draft__action--primary:disabled {
+  opacity: 0.2;
+}

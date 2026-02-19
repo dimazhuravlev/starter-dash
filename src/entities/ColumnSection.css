@@ -1,0 +1,146 @@
+/* Заголовок колонки — фиксируется при скролле */
+.dashboard__column > .column__title {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  background: var(--bg);
+  padding-top: 24px;
+  padding-bottom: 8px;
+  padding-left: 8px;
+}
+
+.column__title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #FFF;
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+  padding-left: 8px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.column__title-count {
+  color: rgba(255, 255, 255, 0.20);
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+  flex-shrink: 0;
+}
+
+.column__title--with-action {
+  gap: 6px;
+}
+
+.column__title-with-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Кнопка «Маршруты» — те же параметры, что у заголовков «Курьеры», «Заказы», «Доставка» */
+.column__title--button {
+  width: 100%;
+  text-align: left;
+  padding-left: 8px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  color: #FFF;
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.column__title--button:focus {
+  outline: none;
+}
+
+.column__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  min-height: 0;
+}
+
+.column__header .column__title {
+  padding-left: 8px;
+}
+
+.column__header--routes {
+  gap: 6px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  margin-top: 8px;
+}
+
+.dashboard__column > .section:first-of-type {
+  margin-top: 0;
+}
+
+/* Убираем лишний отступ сверху между заголовком колонки и первым блоком */
+.dashboard__column > .column__title + .section {
+  margin-top: -8px;
+}
+
+.section__title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section__title-row--action {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.section__title-row--action:focus {
+  outline: none;
+}
+
+.section__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+  padding-left: 8px;
+}
+
+/* Секция «Новый маршрут» — та же анимация скрытия, что у карточки черновика */
+.section--route-exiting {
+  animation: route-draft-disappear 300ms ease forwards;
+  pointer-events: none;
+}
+
+.section__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

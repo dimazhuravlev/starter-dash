@@ -1,0 +1,186 @@
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
+import { useDashboardStore } from '../store/useDashboardStore'
+import { type CourierMarkerItem, type MapViewMode } from '../components/MapboxMap'
+import { type Order, type Route, RESTAURANT_COORDS } from '../model/types'
+
+type MapFocusBounds = {
+  sw: { lat: number; lng: number }
+  ne: { lat: number; lng: number }
+}
+
+type UseDashboardMapFocusParams = {
+  routes: Record<string, Route>
+  orders: Record<string, Order>
+  draftRoutes: Route[]
+  createRouteDraft: () => string
+  attachOrderToRoute: (routeId: string, orderId: string) => void
+  resizerJustInteractedRef: MutableRefObject<boolean>
+}
+
+export function useDashboardMapFocus({
+  routes,
+  orders,
+  draftRoutes,
+  createRouteDraft,
+  attachOrderToRoute,
+  resizerJustInteractedRef,
+}: UseDashboardMapFocusParams) {
+  const [mapFocusCoords, setMapFocusCoords] = useState<{ lat: number; lng: number } | null>(null)
+  const [highlightedOrderIdFromMap, setHighlightedOrderIdFromMap] = useState<string | null>(null)
+  const [highlightedCourierIdFromMap, setHighlightedCourierIdFromMap] = useState<string | null>(null)
+  const highlightedOrderIdFromMapRef = useRef(highlightedOrderIdFromMap)
+  useEffect(() => {
+    highlightedOrderIdFromMapRef.current = highlightedOrderIdFromMap
+  }, [highlightedOrderIdFromMap])
+  const [mapFocusBounds, setMapFocusBounds] = useState<MapFocusBounds | null>(null)
+  const [focusedRouteId, setFocusedRouteId] = useState<string | null>(null)
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('half')
+
+  const focusMapOnRoute = useCallback((routeId: string) => {
+    const state = useDashboardStore.getState()
+    const route = state.routes[routeId]
+    if (!route?.orderIds.length) return
+    if (mapViewMode === 'none') setMapViewMode('half')
+    setHighlightedOrderIdFromMap(null)
+    setFocusedRouteId(routeId)
+    const orderCoords = route.orderIds
+      .map((id) => state.orders[id]?.coords)
+      .filter((c): c is { lat: number; lng: number } => c != null)
+    if (orderCoords.length === 0) return
+    const coords = [RESTAURANT_COORDS, ...orderCoords]
+    setMapFocusCoords(null)
+    const lngs = coords.map((c) => c.lng)
+    const lats = coords.map((c) => c.lat)
+    setMapFocusBounds({
+      sw: { lng: Math.min(...lngs), lat: Math.min(...lats) },
+      ne: { lng: Math.max(...lngs), lat: Math.max(...lats) },
+    })
+  }, [mapViewMode])
+
+  const handleMarkerClick = useCallback(
+    (marker: { id: string }) => {
+      const state = useDashboardStore.getState()
+      const routeContainingOrder = Object.values(state.routes).find((r) => r.orderIds.includes(marker.id))
+
+      if (routeContainingOrder) {
+        focusMapOnRoute(routeContainingOrder.id)
+        setHighlightedOrderIdFromMap(marker.id)
+      } else {
+        setFocusedRouteId(null)
+        setMapFocusBounds(null)
+        if (highlightedOrderIdFromMapRef.current === marker.id) {
+          setHighlightedOrderIdFromMap(null)
+          requestAnimationFrame(() => {
+            setHighlightedOrderIdFromMap(marker.id)
+          })
+        } else {
+          setHighlightedOrderIdFromMap(marker.id)
+        }
+      }
+    },
+    [focusMapOnRoute],
+  )
+
+  useEffect(() => {
+    if (!focusedRouteId) return
+    const route = routes[focusedRouteId]
+    const routeCardVisible =
+      route &&
+      (route.status === 'draft' ||
+        (route.status === 'sent' && route.step.kind !== 'returning'))
+    const allOrdersDelivered =
+      route && route.orderIds.length > 0 && route.orderIds.every((id) => orders[id]?.status === 'delivered')
+    if (!routeCardVisible || allOrdersDelivered) {
+      requestAnimationFrame(() => {
+        setFocusedRouteId(null)
+        setMapFocusBounds(null)
+      })
+    }
+  }, [focusedRouteId, routes, orders])
+
+  const handleMapBackgroundClick = useCallback(() => {
+    setHighlightedOrderIdFromMap(null)
+    setHighlightedCourierIdFromMap(null)
+    setFocusedRouteId(null)
+    setMapFocusBounds(null)
+  }, [])
+
+  const handleLeftPanelClick = useCallback((e: React.MouseEvent) => {
+    const target = e.target instanceof Element ? e.target : null
+    if (target?.closest('.card') || target?.closest('button') || target?.closest('a')) return
+    setFocusedRouteId(null)
+    setMapFocusBounds(null)
+  }, [])
+
+  const handleCourierMarkerClick = useCallback((marker: CourierMarkerItem) => {
+    setHighlightedCourierIdFromMap((prev) => (prev === marker.id ? null : marker.id))
+    setFocusedRouteId(null)
+    setMapFocusBounds(null)
+    setMapFocusCoords({ lat: marker.lat, lng: marker.lng })
+  }, [])
+
+  const handleOrderCardClick = useCallback(
+    (coords: { lat: number; lng: number }) => {
+      if (mapViewMode === 'none') return
+      setFocusedRouteId(null)
+      setMapFocusBounds(null)
+      setMapFocusCoords(coords)
+    },
+    [mapViewMode],
+  )
+
+  const handleCourierCardClick = useCallback(
+    (coords: { lat: number; lng: number }) => {
+      if (mapViewMode === 'none') return
+      setFocusedRouteId(null)
+      setMapFocusBounds(null)
+      setMapFocusCoords(coords)
+    },
+    [mapViewMode],
+  )
+
+  const handleOrderAddToRouteFromMap = useCallback(
+    (orderId: string) => {
+      const draftWithSpace = draftRoutes.find((r) => r.orderIds.length < 3)
+      const routeId = draftWithSpace ? draftWithSpace.id : createRouteDraft()
+      setHighlightedOrderIdFromMap(null)
+      attachOrderToRoute(routeId, orderId)
+      focusMapOnRoute(routeId)
+      requestAnimationFrame(() => {
+        setHighlightedOrderIdFromMap(orderId)
+      })
+    },
+    [draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],
+  )
+
+  const handleMapViewModeChange = useCallback((mode: MapViewMode) => {
+    if (mode === 'none' && resizerJustInteractedRef.current) return
+    setMapViewMode(mode)
+  }, [resizerJustInteractedRef])
+
+  const handleMapClearFocus = useCallback(() => {
+    setMapFocusCoords(null)
+    setMapFocusBounds(null)
+    setHighlightedOrderIdFromMap(null)
+    setHighlightedCourierIdFromMap(null)
+  }, [])
+
+  return {
+    mapFocusCoords,
+    mapFocusBounds,
+    focusedRouteId,
+    highlightedOrderIdFromMap,
+    highlightedCourierIdFromMap,
+    mapViewMode,
+    focusMapOnRoute,
+    handleMarkerClick,
+    handleMapBackgroundClick,
+    handleLeftPanelClick,
+    handleCourierMarkerClick,
+    handleOrderCardClick,
+    handleCourierCardClick,
+    handleOrderAddToRouteFromMap,
+    handleMapViewModeChange,
+    handleMapClearFocus,
+  }
+}

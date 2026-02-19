@@ -5,7 +5,8 @@ import {
   type Route,
   type RouteStepKind,
 } from '../model/types'
-import { MINUTE_MS } from '../model/rules'
+import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
+import addressSeeds from '../data/addressSeeds.json'
 
 export type DashboardState = {
   now: number
@@ -18,22 +19,10 @@ export type DashboardState = {
   nextOrderId: number
   nextRouteId: number
   orderCreateIntervalMin: number
-  orderStageMin: {
-    waiting_cook: number
-    cooking: number
-    ready: number
-  }
+  orderStageMin: OrderStageMin
   orderSlaOptionsMin: number[]
-  routeStageMin: {
-    pickup: number
-    enroute: number
-    handoff: number
-    returning: number
-  }
+  routeStageMin: RouteStageMin
 }
-
-type OrderStageMin = DashboardState['orderStageMin']
-type RouteStageMin = DashboardState['routeStageMin']
 
 const getOrderStageMs = (orderStageMin: OrderStageMin) => ({
   waiting_cook: orderStageMin.waiting_cook * MINUTE_MS,
@@ -47,26 +36,6 @@ const getRouteStageMs = (routeStageMin: RouteStageMin): Record<RouteStepKind, nu
   handoff: routeStageMin.handoff * MINUTE_MS,
   returning: routeStageMin.returning * MINUTE_MS,
 })
-
-const ADDRESS_SEEDS = [
-  { address: 'Серебристый бул. 29к2', coords: { lat: 59.9588, lng: 30.3081 } },
-  { address: 'ул. Карбышева 6к1', coords: { lat: 59.9599, lng: 30.2911 } },
-  { address: 'наб. Чёрной речки 3к2', coords: { lat: 59.9656, lng: 30.3035 } },
-  { address: 'Днепропетровская ул. 7', coords: { lat: 59.9559, lng: 30.3224 } },
-  { address: 'ул. Лидии Зверевой 5к1', coords: { lat: 59.9722, lng: 30.2917 } },
-  { address: 'Торфяная дор. 17к2', coords: { lat: 59.9683, lng: 30.3056 } },
-  { address: 'ал. Поликарпова 2', coords: { lat: 59.9764, lng: 30.3032 } },
-  { address: 'ул. 9 Мая 8', coords: { lat: 59.9651, lng: 30.3187 } },
-  { address: 'ул. Жуковского 45', coords: { lat: 59.9595, lng: 30.3266 } },
-  { address: 'Мгинский пер. 5', coords: { lat: 59.9647, lng: 30.2979 } },
-  { address: 'Решетникова 12к1', coords: { lat: 59.9729, lng: 30.3134 } },
-  { address: 'Коломяжский пр. 15к2', coords: { lat: 59.9704, lng: 30.3044 } },
-  { address: '18-я лн. Васильевского острова 29И', coords: { lat: 59.9669, lng: 30.2722 } },
-  { address: 'ул. Профессора Попова 37Щ', coords: { lat: 59.9729, lng: 30.3134 } },
-  { address: 'Светлановский пр. 8', coords: { lat: 60.0012, lng: 30.3544 } },
-  { address: '3-я Красноармейская ул. 13', coords: { lat: 59.9188, lng: 30.3187 } },
-  { address: 'пл. Льва Мациевича 2', coords: { lat: 59.9845, lng: 30.2811 } },
-]
 
 const COOKING_PIPELINE: OrderStatus[] = [
   'waiting_cook',
@@ -94,7 +63,7 @@ const createOrder = (
   orderStageMin: OrderStageMin,
   orderSlaOptionsMin: number[],
 ): Order => {
-  const seed = ADDRESS_SEEDS[index % ADDRESS_SEEDS.length]
+  const seed = addressSeeds[index % addressSeeds.length]
   const orderNumber = 30000 + index + Math.floor(Math.random() * 20000)
   const totalRub = 400 + Math.floor(Math.random() * 2600)
   return {

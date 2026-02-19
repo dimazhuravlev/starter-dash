@@ -1,0 +1,134 @@
+.delivery__edit-btn {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.delivery__edit-btn:focus {
+  outline: none;
+}
+
+.delivery__edit-btn img {
+  display: block;
+  width: 12px;
+  height: 12px;
+  opacity: 0.4;
+  transition: opacity 200ms ease;
+}
+
+.delivery__edit-btn:hover img {
+  opacity: 0.55;
+}
+
+/* В завершённом заказе в карточке Доставка капсула Done всегда зелёная */
+.delivery__order--delivered .sla-pill.sla-pill--done {
+  background: rgba(3, 171, 0, 0.1);
+  color: var(--Happy-Green, #03ab00);
+}
+
+/* Лейбл «Получение» и лейблы статусов «В пути», «Выдача» — как в карточках курьера и заказа */
+.card--delivery .delivery__label,
+.card--delivery .delivery__order-label {
+  display: flex;
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.40);
+  text-align: center;
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  box-sizing: border-box;
+}
+
+.card--delivery .delivery__label {
+  margin-top: 0;
+}
+
+.delivery__orders {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.delivery__merger {
+  margin-left: 16px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+
+.delivery__merger svg {
+  display: block;
+}
+
+.delivery__order {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  padding: 8px 8px;
+  border-radius: 8px;
+  background: #34373C;
+}
+
+.delivery__order::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.delivery__order--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
+}
+
+.delivery__order-main {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.delivery__order-title {
+  color: #FFF;
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.delivery__order--overdue {
+  background: #570F27;
+}
+
+.delivery__order--delivered .delivery__order-title,
+.delivery__order--delivered .card__order-number,
+.delivery__order--delivered .card__order-cost {
+  text-decoration: line-through;
+  opacity: 0.4;
+}

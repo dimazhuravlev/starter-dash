@@ -1,0 +1,151 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.app-header__tabs {
+  display: flex;
+  gap: 16px;
+}
+
+.app-header__burger {
+  display: none;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.app-header__burger img {
+  width: 16px;
+  height: 16px;
+}
+
+.tab {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: Pretendard;
+  font-size: 16px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 18px;
+  text-transform: none;
+  cursor: default;
+}
+
+.tab--active {
+  color: #fff;
+}
+
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Кнопка пользователя: форма как «Назначить», цвета как кнопка настроек (специфичность выше .route-draft__action) */
+.app-header__right .app-header__user-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  color: var(--text-primary);
+  font-family: Pretendard, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.app-header__right .app-header__user-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+.app-header__right .app-header__user-btn:hover::before {
+  opacity: 1;
+}
+
+.app-header__right .app-header__user-btn--active {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.app-header__right .app-header__user-btn--active::before {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.app-header__right .app-header__user-btn--active:hover::before {
+  opacity: 1;
+}
+
+.app-header__user-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.app-header__user-name {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    position: sticky;
+  }
+
+  .app-header__burger {
+    display: inline-flex;
+  }
+
+  .app-header__tabs {
+    position: absolute;
+    top: 100%;
+    left: 12px;
+    right: 12px;
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px;
+    background: #131415;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+    z-index: 12;
+  }
+
+  .app-header--menu-open .app-header__tabs {
+    display: flex;
+  }
+
+  .app-header__tabs .tab {
+    text-align: left;
+    padding: 0;
+    border-radius: 8px;
+  }
+}

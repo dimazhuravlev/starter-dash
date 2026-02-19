@@ -1,0 +1,525 @@
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 8px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 160ms ease, box-shadow 160ms ease, background-color 200ms ease;
+}
+
+.card:hover {
+  background-color: rgba(32, 35, 39, 0.98);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Карточка маршрута: верх 8px, слева/справа/снизу 6px (шаблон, назначенная, активная) */
+.card--route,
+.card--delivery {
+  padding: 8px 6px 6px 6px;
+}
+
+.card--courier,
+.card--delivery {
+  position: relative;
+  background: #22262B;
+}
+
+.card--courier::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card--courier.card--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
+}
+
+.card--courier:hover,
+.card--delivery:hover {
+  transform: translateY(-2px); /* !important ниже перебивает transform от animation forwards у карточек «Активные» */
+  background-color: rgba(28, 31, 35, 0.98);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.card.card--delivery:hover {
+  transform: translateY(-2px) !important;
+}
+
+.card--route:hover:has(.route-draft__order) {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.card--route:not(.card--route-empty):hover:has(.route-draft__order) {
+  transform: translateY(-2px);
+}
+
+.card--draggable {
+  cursor: grab;
+}
+
+.card--draggable:active {
+  cursor: grabbing;
+}
+
+.card--draggable:hover {
+  transform: translateY(-2px);
+  background-color: rgba(32, 35, 39, 0.98);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+.card--dragging {
+  opacity: 0.5;
+}
+
+.card--in-draft {
+  opacity: 0.4;
+}
+
+@keyframes route-draft-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    /* transform не задаём в to, чтобы после анимации значение бралось из стилей и transition при ховере работал */
+  }
+}
+
+@keyframes route-draft-disappear {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+.card--route-empty {
+  --route-radius: 12px;
+  display: flex;
+  padding: 8px 6px 6px 6px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: 0;
+  border-radius: var(--route-radius);
+  overflow: hidden;
+  border: 1.5px dashed rgba(255, 255, 255, 0.10);
+  background: rgba(34, 38, 43, 0.30);
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
+  animation: route-draft-appear 300ms ease forwards;
+  transition: box-shadow 300ms ease, background-color 200ms ease, border-color 200ms ease;
+}
+
+.card--route-empty:hover {
+  background-color: rgba(28, 32, 37, 0.5);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.card--route-exiting {
+  animation: route-draft-disappear 300ms ease forwards;
+  pointer-events: none;
+}
+
+.card--delivery-appearing {
+  opacity: 0;
+  transform: translateY(-12px);
+  animation: delivery-card-enter 300ms ease-out forwards;
+}
+
+.card--delivery-exiting {
+  animation: delivery-card-exit 300ms ease forwards;
+  pointer-events: none;
+}
+
+@keyframes delivery-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes delivery-card-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+.card--draft-appearing {
+  opacity: 0;
+  animation: draft-card-enter 300ms ease-out both;
+}
+
+@keyframes draft-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card--order {
+  position: relative;
+  overflow: hidden;
+  gap: 0;
+}
+
+.card--order.card--highlighted-from-map::after {
+  animation: order-flash 1800ms ease-in-out;
+}
+
+.card--order .card__row {
+  align-items: flex-start;
+}
+
+.card--order .sla-pill {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  flex-shrink: 0;
+}
+
+.card--order .card__row .card__title {
+  padding-right: 48px;
+}
+
+.card--order .card__order-details {
+  margin-top: 4px;
+}
+
+.card--order .chip {
+  margin-top: 6px;
+}
+
+.card--focus-on-map {
+  cursor: pointer;
+}
+
+.card--overdue {
+  background: #570F27;
+}
+
+.card--overdue:hover {
+  background-color: rgba(58, 10, 26, 0.98);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.card--order::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.3);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.card--order-new::after {
+  animation: order-flash 1300ms ease-in-out;
+}
+
+.card--order-new {
+  animation: order-appear 500ms ease-in-out;
+}
+
+@keyframes order-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes order-flash {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Лейбл с количеством минут под именем курьера */
+.card--courier .chip {
+  display: flex;
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.40);
+  text-align: center;
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.card--delivery .chip {
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+}
+
+.card__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card__courier-icon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  object-fit: contain;
+  opacity: 0.4;
+  filter: brightness(0) invert(1);
+}
+.card--courier .card__row,
+.card--delivery .card__row {
+  justify-content: flex-start;
+  gap: 4px;
+}
+
+.card__title {
+  color: #fff;
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  min-width: 0;
+}
+
+.card--courier .card__title,
+.card--order .card__title,
+.card--delivery .card__title {
+  color: #fff;
+  font-family: Pretendard;
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+/* Номер заказа и стоимость в карточке заказа */
+.card__order-details {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.20);
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.card__order-number,
+.card__order-cost {
+  color: rgba(255, 255, 255, 0.20);
+  font-family: Pretendard;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.card__order-dot {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.10);
+  flex-shrink: 0;
+}
+
+.sla-pill {
+  display: flex;
+  height: 16px;
+  min-width: 20px;
+  padding: 0 6px;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  border-radius: 16px;
+  background: rgba(3, 171, 0, 0.1);
+  color: var(--Happy-Green, #03ab00);
+  text-align: center;
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.sla-pill--overdue {
+  background: rgba(232, 48, 110, 0.20);
+  color: hsla(340, 80%, 55%, 1);
+}
+
+.sla-pill--done {
+  justify-content: center;
+}
+
+.sla-pill__done-icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+.card__meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  box-sizing: border-box;
+}
+
+.chip--good {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.chip--warn {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.chip--bad {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.chip--ghost {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
+.chip--sla {
+  flex-shrink: 0;
+  background: rgba(46, 204, 113, 0.18);
+  border: 1px solid rgba(46, 204, 113, 0.4);
+  color: #47d37a;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+/* Лейбл с количеством минут под адресом в карточке заказа (ETA) */
+.card--order .chip {
+  display: flex;
+  align-self: flex-start;
+  height: 20px;
+  padding: 0 6px;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.40);
+  text-align: center;
+  font-family: Pretendard;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+.card--order .chip--sla {
+  flex-shrink: 0;
+  background: rgba(46, 204, 113, 0.18);
+  border: 1px solid rgba(46, 204, 113, 0.4);
+  color: #47d37a;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+.primary-button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #212428;
+  color: var(--text-primary);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  cursor: pointer;
+  margin: 0 6px;
+}
+
+.ghost-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ghost-button {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}

@@ -15,4 +15,7 @@ export const ROUTE_STAGE_MIN = {
   returning: 5,
 } as const
 
+export type OrderStageMin = { [K in keyof typeof ORDER_STAGE_MIN]: number }
+export type RouteStageMin = { [K in keyof typeof ROUTE_STAGE_MIN]: number }
+
 export const ORDER_SLA_OPTIONS_MIN = [30, 40, 50] as const

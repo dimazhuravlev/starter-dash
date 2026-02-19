@@ -1,0 +1,46 @@
+.relative {
+  position: relative;
+}
+
+.absolute {
+  position: absolute;
+}
+
+.inset-0 {
+  inset: 0;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+.rounded-xl {
+  border-radius: 16px;
+}
+
+.bg-neutral-900 {
+  background: #111827;
+}
+
+.border-0 {
+  border: 0;
+}
+
+body.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 6px 4px;
+}
