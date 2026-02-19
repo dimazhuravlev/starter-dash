@@ -32,8 +32,8 @@
 
 /* В завершённом заказе в карточке Доставка капсула Done всегда зелёная */
 .delivery__order--delivered .sla-pill.sla-pill--done {
-  background: rgba(3, 171, 0, 0.1);
-  color: var(--Happy-Green, #03ab00);
+  background: var(--accent-surface);
+  color: var(--accent);
 }
 
 /* Лейбл «Получение» и лейблы статусов «В пути», «Выдача» — как в карточках курьера и заказа */
@@ -46,15 +46,12 @@
   align-items: center;
   gap: 2px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.40);
+  border: 1px solid var(--stroke-1);
+  background: var(--fill-3);
+  color: var(--text-2);
   text-align: center;
-  font-family: Pretendard, sans-serif;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
   box-sizing: border-box;
 }
 
@@ -86,11 +83,11 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  font-size: 12px;
-  color: var(--text-primary);
+  font: var(--type-subtitle);
+  color: var(--text-1);
   padding: 8px 8px;
   border-radius: 8px;
-  background: #34373C;
+  background: var(--surface-2);
 }
 
 .delivery__order::after {
@@ -98,7 +95,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--fill-5);
   opacity: 0;
   pointer-events: none;
 }
@@ -114,16 +111,13 @@
 }
 
 .delivery__order-title {
-  color: #FFF;
-  font-family: Pretendard, sans-serif;
-  font-size: 12px;
+  color: var(--text-1);
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
 }
 
 .delivery__order--overdue {
-  background: #570F27;
+  background: var(--danger-surface-strong);
 }
 
 .delivery__order--delivered .delivery__order-title,

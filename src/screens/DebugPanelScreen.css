@@ -1,12 +1,12 @@
-/* Debug panel styles */
+/* Debug panel styles — весь текст в стиле Text (14px/16px) */
 .debug {
+  font: var(--type-text);
   width: 100%;
   max-width: none;
   margin: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
-  color: var(--text-primary);
   padding: 16px;
   box-sizing: border-box;
   overflow: auto;
@@ -21,23 +21,17 @@
 
 .debug__header h1 {
   margin: 6px 0 0;
-  font-size: 20px;
-  font-weight: 600;
+  font: var(--type-title);
 }
 
 .debug__eyebrow {
   margin: 0;
-  font-size: 12px;
-  color: var(--text-muted);
 }
 
 .debug__clock {
-  font-variant-numeric: tabular-nums;
-  background: var(--card-bg);
+  background: var(--surface-1);
   border-radius: 12px;
   padding: 10px 14px;
-  font-size: 14px;
-  color: var(--text-primary);
 }
 
 .debug__controls {
@@ -64,29 +58,30 @@
   margin-top: 12px;
 }
 
-.stage-editor__title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+.debug .stage-editor__title {
+  color: var(--text-1);
 }
 
-.stage-editor__row {
+.debug .stage-editor__row,
+.debug .stage-editor__row span {
+  color: var(--text-2);
+}
+
+.debug .stage-editor__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 13px;
-  color: var(--text-primary);
 }
 
-.stage-editor__input {
+.debug .stage-editor__input {
+  font: var(--type-text);
+  color: var(--text-1);
   width: 72px;
-  background: var(--card-bg);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--surface-1);
+  border: 1px solid var(--stroke-2);
   border-radius: 8px;
   padding: 6px 8px;
-  font-size: 12px;
-  color: var(--text-primary);
   text-align: right;
 }
 
@@ -100,8 +95,8 @@
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
-.panel {
-  background: var(--column-bg);
+.debug .panel {
+  background: var(--surface-1);
   border-radius: 16px;
   padding: 18px 20px;
   box-shadow: none;
@@ -112,19 +107,17 @@
   max-width: 400px;
 }
 
-.panel h2 {
+
+.debug .panel h2 {
   margin: 0 0 12px;
-  font-size: 16px;
-  font-weight: 600;
+  font: var(--type-title);
 }
 
-.panel__summary {
-  font-size: 13px;
-  color: var(--text-muted);
+.debug .panel__summary {
   margin-bottom: 12px;
 }
 
-.panel__list {
+.debug .panel__list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -133,84 +126,45 @@
   max-width: 400px;
 }
 
-.panel__list li {
+.debug .panel__list li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 14px;
 }
 
-.panel__list strong {
-  color: var(--text-primary);
-}
-
-.btn {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #212428;
-  color: var(--text-primary);
-  padding: 10px 16px;
-  border-radius: 10px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
-
-.btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
-}
-
-.btn--ghost {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
-}
-
-.btn--active {
-  background: rgba(255, 255, 255, 0.2);
-  color: var(--text-primary);
-}
-
-.btn-group {
+.debug__btn-group {
   display: inline-flex;
   gap: 8px;
 }
 
-.table {
+.debug .table {
   display: grid;
   gap: 6px;
-  font-size: 13px;
-  color: var(--text-primary);
 }
 
-.table__row {
+.debug .table__row {
   display: grid;
   grid-template-columns: 80px 1fr 60px 90px;
   gap: 8px;
   padding: 6px 0;
-  border-bottom: 1px solid rgba(94, 108, 141, 0.2);
+  border-bottom: 1px solid var(--stroke-2);
 }
 
-.table__row--head {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #7b85a5;
-  border-bottom: 1px solid rgba(94, 108, 141, 0.35);
+.debug .table__row--head {
+  border-bottom: 1px solid var(--stroke-2);
 }
 
-.table__empty {
+.debug .table__empty {
   padding: 8px 0;
-  color: #7b85a5;
 }
 
-.debug__grid--wide .table__row {
+.debug .debug__grid--wide .table__row {
   grid-template-columns: 80px 90px 1fr 1fr 120px;
 }
 
 @media (max-width: 800px) {
-  .table__row,
-  .debug__grid--wide .table__row {
+  .debug .table__row,
+  .debug .debug__grid--wide .table__row {
     grid-template-columns: 1fr;
   }
 }

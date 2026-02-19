@@ -1,5 +1,6 @@
 .card {
-  background: var(--card-bg);
+  position: relative;
+  background: var(--surface-1);
   border-radius: 12px;
   padding: 8px;
   overflow-wrap: break-word;
@@ -9,12 +10,26 @@
   flex-direction: column;
   gap: 8px;
   box-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
-  transition: transform 160ms ease, box-shadow 160ms ease, background-color 200ms ease;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--overlay-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
 }
 
 .card:hover {
-  background-color: rgba(32, 35, 39, 0.98);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.card:hover::before {
+  opacity: 1;
 }
 
 /* Карточка маршрута: верх 8px, слева/справа/снизу 6px (шаблон, назначенная, активная) */
@@ -26,7 +41,7 @@
 .card--courier,
 .card--delivery {
   position: relative;
-  background: #22262B;
+  background: var(--surface-1);
 }
 
 .card--courier::after {
@@ -34,7 +49,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--fill-5);
   opacity: 0;
   pointer-events: none;
 }
@@ -46,7 +61,6 @@
 .card--courier:hover,
 .card--delivery:hover {
   transform: translateY(-2px); /* !important ниже перебивает transform от animation forwards у карточек «Активные» */
-  background-color: rgba(28, 31, 35, 0.98);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
@@ -72,7 +86,6 @@
 
 .card--draggable:hover {
   transform: translateY(-2px);
-  background-color: rgba(32, 35, 39, 0.98);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
 }
 
@@ -117,16 +130,11 @@
   gap: 0;
   border-radius: var(--route-radius);
   overflow: hidden;
-  border: 1.5px dashed rgba(255, 255, 255, 0.10);
-  background: rgba(34, 38, 43, 0.30);
+  border: 1.5px dashed var(--stroke-3);
+  background: var(--fill-1);
   box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
   animation: route-draft-appear 300ms ease forwards;
-  transition: box-shadow 300ms ease, background-color 200ms ease, border-color 200ms ease;
-}
-
-.card--route-empty:hover {
-  background-color: rgba(28, 32, 37, 0.5);
-  border-color: rgba(255, 255, 255, 0.14);
+  transition: box-shadow 300ms ease, border-color 200ms ease;
 }
 
 .card--route-exiting {
@@ -221,19 +229,14 @@
 }
 
 .card--overdue {
-  background: #570F27;
-}
-
-.card--overdue:hover {
-  background-color: rgba(58, 10, 26, 0.98);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  background: var(--danger-surface-strong);
 }
 
 .card--order::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--fill-5);
   opacity: 0;
   pointer-events: none;
 }
@@ -279,15 +282,12 @@
   align-items: center;
   gap: 2px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.40);
+  border: 1px solid var(--stroke-1);
+  background: var(--fill-3);
+  color: var(--text-2);
   text-align: center;
-  font-family: Pretendard;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
 }
 
 .card--delivery .chip {
@@ -295,13 +295,10 @@
   height: 20px;
   padding: 0 8px;
   border-radius: 5px;
-  font-family: Pretendard;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
-  color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-2);
+  background: var(--fill-4);
   box-sizing: border-box;
 }
 
@@ -327,12 +324,9 @@
 }
 
 .card__title {
-  color: #fff;
-  font-family: Pretendard;
-  font-size: 14px;
+  color: var(--text-1);
+  font: var(--type-text);
   font-style: normal;
-  font-weight: 600;
-  line-height: 16px;
   overflow-wrap: break-word;
   word-break: break-word;
   min-width: 0;
@@ -341,12 +335,9 @@
 .card--courier .card__title,
 .card--order .card__title,
 .card--delivery .card__title {
-  color: #fff;
-  font-family: Pretendard;
-  font-size: 14px;
+  color: var(--text-1);
+  font: var(--type-text);
   font-style: normal;
-  font-weight: 600;
-  line-height: 16px;
 }
 
 /* Номер заказа и стоимость в карточке заказа */
@@ -355,21 +346,15 @@
   align-items: center;
   gap: 4px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.20);
-  font-family: Pretendard;
-  font-size: 12px;
+  color: var(--text-3);
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
 }
 
 .card__order-number,
 .card__order-cost {
-  color: rgba(255, 255, 255, 0.20);
-  font-family: Pretendard;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 14px;
+  color: var(--text-3);
+  font: var(--type-subtitle);
 }
 
 .card__order-dot {
@@ -377,7 +362,7 @@
   width: 3px;
   height: 3px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--fill-4);
   flex-shrink: 0;
 }
 
@@ -390,21 +375,18 @@
   align-items: center;
   gap: 8px;
   border-radius: 16px;
-  background: rgba(3, 171, 0, 0.1);
-  color: var(--Happy-Green, #03ab00);
+  background: var(--accent-surface);
+  color: var(--accent);
   text-align: center;
-  font-family: Pretendard;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
   box-sizing: border-box;
   flex-shrink: 0;
 }
 
 .sla-pill--overdue {
-  background: rgba(232, 48, 110, 0.20);
-  color: hsla(340, 80%, 55%, 1);
+  background: var(--danger-surface);
+  color: var(--danger);
 }
 
 .sla-pill--done {
@@ -417,8 +399,8 @@
 }
 
 .card__meta {
-  color: var(--text-muted);
-  font-size: 12px;
+  color: var(--text-2);
+  font: var(--type-subtitle);
 }
 
 .chip {
@@ -428,43 +410,39 @@
   height: 20px;
   padding: 0 8px;
   border-radius: 6px;
-  font-family: Pretendard;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
+  background: var(--fill-3);
+  color: var(--text-2);
   box-sizing: border-box;
 }
 
 .chip--good {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
+  background: var(--fill-3);
+  color: var(--text-2);
 }
 
 .chip--warn {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
+  background: var(--fill-3);
+  color: var(--text-2);
 }
 
 .chip--bad {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
+  background: var(--fill-3);
+  color: var(--text-2);
 }
 
 .chip--ghost {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-muted);
+  background: var(--fill-3);
+  color: var(--text-2);
 }
 
 .chip--sla {
   flex-shrink: 0;
-  background: rgba(46, 204, 113, 0.18);
-  border: 1px solid rgba(46, 204, 113, 0.4);
-  color: #47d37a;
+  background: var(--accent-surface);
+  color: var(--accent);
+  font: var(--type-subtitle);
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
   border-radius: 999px;
 }
 
@@ -477,34 +455,31 @@
   align-items: center;
   gap: 2px;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.40);
+  border: 1px solid var(--stroke-1);
+  background: var(--fill-3);
+  color: var(--text-2);
   text-align: center;
-  font-family: Pretendard;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
 }
 
 .card--order .chip--sla {
   flex-shrink: 0;
-  background: rgba(46, 204, 113, 0.18);
+  background: var(--accent-surface);
   border: 1px solid rgba(46, 204, 113, 0.4);
-  color: #47d37a;
+  color: var(--accent);
+  font: var(--type-subtitle);
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
   border-radius: 999px;
 }
 
 .primary-button {
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: #212428;
-  color: var(--text-primary);
+  border: 1px solid var(--stroke-2);
+  background: var(--surface-1);
+  color: var(--text-1);
   padding: 8px 10px;
   border-radius: 10px;
-  font-size: 12px;
+  font: var(--type-subtitle);
   cursor: pointer;
   margin: 0 6px;
 }
@@ -515,11 +490,11 @@
 }
 
 .ghost-button {
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--text-primary);
+  border: 1px solid var(--stroke-2);
+  background: var(--fill-4);
+  color: var(--text-1);
   border-radius: 999px;
   padding: 6px 14px;
-  font-size: 12px;
+  font: var(--type-subtitle);
   cursor: pointer;
 }

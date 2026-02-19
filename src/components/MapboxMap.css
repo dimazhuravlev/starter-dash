@@ -46,11 +46,17 @@
   display: none !important;
 }
 
+/* Типографика Mapbox GL (попапы, контролы) — без Arial */
+.mapbox-map-container .mapboxgl-popup,
+.mapbox-map-container .mapboxgl-ctrl {
+  font-family: var(--font-family);
+}
+
 .mapbox-map-overlay {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: #22262b;
+  background: var(--surface-1);
   opacity: 0;
   border-radius: 12px;
   transition: opacity 400ms ease-in-out, border-radius 400ms ease-in-out;
@@ -67,7 +73,7 @@
 }
 
 .mapbox-map-wrapper--collapsed:hover .mapbox-map-overlay {
-  background-color: #34373c;
+  background-color: var(--surface-2);
 }
 
 /* В свернутом режиме видна только правая полоска контейнера — позиционируем от правого края (8px от левого края полоски) */
@@ -119,9 +125,9 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1.125px solid rgba(255, 255, 255, 0.04);
+  border: 1.125px solid var(--stroke-1);
   border-radius: 36px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-4) 100%);
   backdrop-filter: blur(13.5px);
   cursor: pointer;
   box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
@@ -132,7 +138,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-2);
   opacity: 0;
   transition: opacity 150ms ease;
   pointer-events: none;
@@ -157,7 +163,7 @@
   align-items: center;
   gap: 0;
   border-radius: 32px;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--fill-4);
   backdrop-filter: blur(12px);
 }
 
@@ -171,23 +177,23 @@
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: #fff;
+  color: var(--text-1);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .mapbox-map-view-selector__btn:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--stroke-1);
 }
 
 .mapbox-map-view-selector__btn--active {
   border-radius: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  border: 1px solid var(--stroke-1);
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-4) 100%);
 }
 
 .mapbox-map-view-selector__btn--active:hover {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-4) 100%);
 }
 
 .mapbox-map-view-selector__btn img {
@@ -207,20 +213,20 @@
   padding: 16px;
   text-align: center;
   background: rgba(0, 0, 0, 0.2);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 14px;
+  color: var(--text-1);
+  font: var(--type-text);
 }
 
 .mapbox-map-placeholder code {
   padding: 2px 6px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  font-size: 13px;
+  background: var(--fill-4);
+  font: var(--type-text);
 }
 
 .mapbox-map-placeholder-hint {
   margin: 0;
-  font-size: 13px;
+  font: var(--type-text);
 }
 
 .mapbox-map-placeholder-hint a {
@@ -256,17 +262,14 @@
   align-items: center;
   gap: 8px;
   border-radius: 16px;
-  background: #03AB00;
-  color: rgba(255, 255, 255, 1);
+  background: var(--accent);
+  color: var(--text-1);
   text-align: center;
-  font-family: Pretendard, sans-serif;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
   box-sizing: border-box;
   flex-shrink: 0;
-  border: 1.5px solid #FFF;
+  border: 1.5px solid var(--text-1);
 }
 
 .mapbox-order-marker__pill-num {
@@ -274,15 +277,15 @@
 }
 
 .mapbox-order-marker__pill--overdue {
-  background: #E8306E;
-  color: rgba(255, 255, 255, 1);
+  background: var(--danger);
+  color: var(--text-1);
 }
 
 /* Доставленный заказ в маршруте: капсула зелёная (opacity 1), иконка галочки белая */
 .mapbox-order-marker__pill--done {
   justify-content: center;
-  background: #03AB00;
-  color: #FFF;
+  background: var(--accent);
+  color: var(--text-1);
 }
 
 .mapbox-order-marker__done-icon {
@@ -319,8 +322,8 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: #03AB00;
-  border: 2px solid #FFF;
+  background-color: var(--accent);
+  border: 2px solid var(--text-1);
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -377,34 +380,28 @@
 
 .mapbox-courier-marker__label {
   max-width: 120px;
-  color: #FFF;
+  color: var(--text-1);
   text-align: center;
   text-shadow:
-    0 0 1px #202020,
+    0 0 1px var(--surface-0),
     0 1px 2px rgba(0, 0, 0, 0.8),
     0 0 4px rgba(0, 0, 0, 0.5);
-  font-family: Pretendard, sans-serif;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px;
   white-space: normal;
   word-break: break-word;
 }
 
 .mapbox-order-marker__label {
   max-width: 120px;
-  color: #FFF;
+  color: var(--text-1);
   text-align: center;
   text-shadow:
-    0 0 1px #202020,
+    0 0 1px var(--surface-0),
     0 1px 2px rgba(0, 0, 0, 0.8),
     0 0 4px rgba(0, 0, 0, 0.5);
-  font-family: Pretendard, sans-serif;
-  font-size: 12px;
+  font: var(--type-subtitle);
   font-style: normal;
-  font-weight: 600;
-  line-height: 14px; /* 116.667% */
   white-space: normal;
   word-break: break-word;
 }
@@ -416,9 +413,9 @@
 
 .mapboxgl-popup.mapbox-marker-popup-container .mapboxgl-popup-content {
   padding: 0;
-  background: #282A2E;
+  background: var(--surface-1);
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--stroke-2);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   opacity: 0;
   transform: translateY(4px);
@@ -447,16 +444,14 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: #FFF;
-  font-family: Pretendard, sans-serif;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--text-1);
+  font: var(--type-text);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .mapbox-marker-popup__btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--fill-3);
 }
 
 .mapbox-marker-popup__btn:focus {

@@ -4,7 +4,7 @@
   justify-content: space-between;
   height: 48px;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--stroke-2);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -37,18 +37,15 @@
   padding: 0;
   border: none;
   background: transparent;
-  color: var(--text-muted);
-  font-family: Pretendard;
-  font-size: 16px;
+  color: var(--text-2);
+  font: var(--type-title);
   font-style: normal;
-  font-weight: 600;
-  line-height: 18px;
   text-transform: none;
   cursor: default;
 }
 
 .tab--active {
-  color: #fff;
+  color: var(--text-1);
 }
 
 .app-header__right {
@@ -66,14 +63,11 @@
   height: 32px;
   padding: 0 12px;
   border-radius: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.10) 100%);
+  border: 1px solid var(--stroke-1);
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-4) 100%);
   box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
-  color: var(--text-primary);
-  font-family: Pretendard, sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 14px;
+  color: var(--text-1);
+  font: var(--type-subtitle);
 }
 
 .app-header__right .app-header__user-btn::before {
@@ -81,7 +75,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-2);
   opacity: 0;
   transition: opacity 150ms ease;
   pointer-events: none;
@@ -91,12 +85,9 @@
   opacity: 1;
 }
 
-.app-header__right .app-header__user-btn--active {
-  background: rgba(255, 255, 255, 0.12);
-}
-
 .app-header__right .app-header__user-btn--active::before {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--overlay-hover);
+  opacity: 1;
 }
 
 .app-header__right .app-header__user-btn--active:hover::before {
@@ -132,9 +123,9 @@
     flex-direction: column;
     gap: 4px;
     padding: 10px;
-    background: #131415;
+    background: var(--surface-0);
     border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--stroke-2);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
     z-index: 12;
   }

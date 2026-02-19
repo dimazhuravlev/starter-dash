@@ -1,4 +1,5 @@
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
+import { PrimaryButton } from '../shared/ui/PrimaryButton'
 
 type DebugPanelScreenProps = {
   now: number
@@ -69,30 +70,30 @@ export function DebugPanelScreen({
       </header>
 
       <section className="debug__controls">
-        <button type="button" className="btn" onClick={toggleRun}>
+        <PrimaryButton variant="default" onClick={toggleRun}>
           {isRunning ? 'Пауза' : 'Старт'}
-        </button>
-        <div className="btn-group">
+        </PrimaryButton>
+        <div className="debug__btn-group">
           {[1, 3, 5, 20].map((value) => (
-            <button
+            <PrimaryButton
               key={value}
-              type="button"
-              className={value === speed ? 'btn btn--active' : 'btn btn--ghost'}
+              variant="ghost"
+              active={value === speed}
               onClick={() => setSpeed(value as 1 | 3 | 5 | 20)}
             >
               x{value}
-            </button>
+            </PrimaryButton>
           ))}
         </div>
-        <button type="button" className="btn btn--ghost" onClick={() => tick(60_000)}>
+        <PrimaryButton variant="ghost" onClick={() => tick(60_000)}>
           Шаг +1 мин
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={() => tick(600_000)}>
+        </PrimaryButton>
+        <PrimaryButton variant="ghost" onClick={() => tick(600_000)}>
           Шаг +10 мин
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={resetSeed}>
+        </PrimaryButton>
+        <PrimaryButton variant="ghost" onClick={resetSeed}>
           Сбросить сид
-        </button>
+        </PrimaryButton>
       </section>
 
       <section className="debug__grid">

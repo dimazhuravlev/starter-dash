@@ -1,0 +1,67 @@
+/* Основная кнопка: светлый градиент, для акцентного действия */
+.primary-btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 40px;
+  background: linear-gradient(0deg, #FAFAFA 0%, #FFF 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  font-style: normal;
+  transition: opacity 200ms ease;
+  cursor: pointer;
+}
+
+.primary-btn:disabled {
+  opacity: 0.2;
+  cursor: not-allowed;
+}
+
+.primary-btn--default {
+  height: 32px;
+  padding: 0 12px;
+  color: var(--text-inverted);
+  font: var(--type-subtitle);
+}
+
+.primary-btn--mobile {
+  height: 40px;
+  padding: 0 24px;
+  color: var(--text-inverted);
+  font: var(--type-text);
+}
+
+/* Вторичная кнопка (дебаг-панель, группы): ховер как у карточек — оверлей */
+.primary-btn--ghost {
+  position: relative;
+  overflow: hidden;
+  height: auto;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke-2);
+  background: var(--fill-4);
+  box-shadow: none;
+  color: var(--text-1);
+  font: var(--type-text);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.primary-btn--ghost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--overlay-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.primary-btn--ghost:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.primary-btn--ghost:hover::before,
+.primary-btn--ghost.primary-btn--active::before {
+  opacity: 1;
+}

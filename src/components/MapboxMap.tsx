@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDirectionsRoute, emptyRouteGeoJSON, type RoutePathCoord } from '../hooks/useDirectionsRoute'
+import { getColorToken } from '../theme'
 import restaurantIconUrl from '../assets/Restourant.svg'
 import halfMapIconUrl from '../assets/Half map.svg'
 import noMapIconUrl from '../assets/No map.svg'
@@ -119,7 +120,7 @@ function shortenAddressForLabel(address: string): string {
 }
 
 const DONE_ICON_SVG =
-  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" class="mapbox-order-marker__done-icon" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill="#FFF"/></svg>'
+  '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" class="mapbox-order-marker__done-icon" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill="currentColor"/></svg>'
 
 function createMarkerElement(
   marker: MapMarkerItem,
@@ -398,6 +399,8 @@ export function MapboxMap({
           data: emptyRouteGeoJSON(),
         })
       }
+      const accent = getColorToken('--accent') || '#03ab00'
+      const accentOnAccent = getColorToken('--text-1') || '#ffffff'
       if (!map.getLayer('route-line-glow')) {
         map.addLayer({
           id: 'route-line-glow',
@@ -405,7 +408,7 @@ export function MapboxMap({
           source: 'route',
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': '#03AB00',
+            'line-color': accent,
             'line-width': 14,
             'line-blur': 12,
             'line-opacity': 0,
@@ -424,15 +427,15 @@ export function MapboxMap({
               ['linear'],
               ['%', ['+', ['-', ['line-progress'], 0], 1], 1],
               0,
-              '#03AB00',
+              accent,
               0.35,
-              '#03AB00',
+              accent,
               0.5,
-              '#ffffff',
+              accentOnAccent,
               0.65,
-              '#03AB00',
+              accent,
               1,
-              '#03AB00',
+              accent,
             ],
             'line-width': 3,
             'line-dasharray': [1.5, 2],
@@ -748,6 +751,7 @@ export function MapboxMap({
   useEffect(() => {
     if (!mapRef.current || !mapReady || !mapRef.current.getLayer('route-line')) return
     const map = mapRef.current
+    const accent = getColorToken('--accent') || '#03ab00'
     const startTime = performance.now()
     let rafId: number
     const tick = () => {
@@ -758,15 +762,15 @@ export function MapboxMap({
         ['linear'],
         ['%', ['+', ['-', ['line-progress'], phase], 1], 1],
         0,
-        '#03AB00',
+        accent,
         0.45,
-        '#03AB00',
+        accent,
         0.5,
         '#B8FFB7',
         0.55,
-        '#03AB00',
+        accent,
         1,
-        '#03AB00',
+        accent,
       ])
       rafId = requestAnimationFrame(tick)
     }

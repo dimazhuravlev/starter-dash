@@ -1,6 +1,7 @@
 import { type Courier, type Order, type Route } from '../model/types'
 import { type CourierMarkerItem } from '../components/MapboxMap'
 import { MapWidget, type OrderMarkerItem } from '../components/MapWidget'
+import { PrimaryButton } from '../shared/ui/PrimaryButton'
 
 export type DashboardMobileMapProps = {
   isOpen: boolean
@@ -46,14 +47,13 @@ export function DashboardMobileMap({
   return (
     <>
       <div className="map-floating-btn" aria-hidden="true">
-        <button
-          type="button"
-          className="map-floating-btn__btn"
+        <PrimaryButton
+          variant="mobile"
           onClick={onToggle}
           aria-label={isOpen ? 'Показать карточки' : 'Показать карту'}
         >
           {isOpen ? 'Карточки' : 'Карта'}
-        </button>
+        </PrimaryButton>
       </div>
       {isOpen ? (
         <div className="mobile-map-overlay" role="dialog" aria-modal="true" aria-label="Карта">

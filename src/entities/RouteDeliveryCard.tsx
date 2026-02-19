@@ -5,6 +5,7 @@ import editIcon from '../assets/Edit.svg'
 import walkingCourierIcon from '../assets/Walking courier.svg'
 import bikeCourierIcon from '../assets/Bike courier.svg'
 import carCourierIcon from '../assets/Car courier 2.svg'
+import { getColorToken } from '../theme'
 import { getOrderRiskStatus, getOrderSlaStatus } from './OrdersSection'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
@@ -156,8 +157,8 @@ export function RouteDeliveryCard({
                 : { isBehindSchedule: false }
             const belowRed = !belowDelivered && (nextSla.isOverdue || nextRisk.isBehindSchedule)
             const gradientId = `delivery-merger-${route.id}-${index}`
-            const gray = '#34373C'
-            const red = '#570F27'
+            const gray = getColorToken('--surface-2')
+            const red = getColorToken('--danger-surface-strong')
             const topColor = aboveDelivered ? gray : aboveRed ? red : gray
             const bottomColor = belowDelivered ? gray : belowRed ? red : gray
             mergerNode = (
@@ -205,7 +206,7 @@ export function RouteDeliveryCard({
                 >
                   {order?.status === 'delivered' ? (
                     <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="sla-pill__done-icon" aria-hidden>
-                      <path fillRule="evenodd" clipRule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill="#03AB00" />
+                      <path fillRule="evenodd" clipRule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill={getColorToken('--accent')} />
                     </svg>
                   ) : (
                     slaStatus.label

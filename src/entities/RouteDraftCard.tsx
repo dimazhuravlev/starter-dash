@@ -15,6 +15,8 @@ import {
   setLastDropRouteId,
   type DndPayload,
 } from '../shared/dashboardDnd'
+import { getColorToken } from '../theme'
+import { PrimaryButton } from '../shared/ui/PrimaryButton'
 import { getOrderRiskStatus, getOrderSlaStatus } from './OrdersSection'
 
 type RouteDraftCardProps = {
@@ -322,8 +324,8 @@ export function RouteDraftCard({
                   : { isBehindSchedule: false }
                 const belowRed = nextSla.isOverdue || nextRisk.isBehindSchedule
                 const gradientId = `merger-${route.id}-${index}`
-                const gray = '#34373C'
-                const red = '#570F27'
+                const gray = getColorToken('--surface-2')
+                const red = getColorToken('--danger-surface-strong')
                 const topColor = aboveRed ? red : gray
                 const bottomColor = belowRed ? red : gray
                 const isDropTarget = reorderDropIndex === index + 1
@@ -371,14 +373,13 @@ export function RouteDraftCard({
         ) : null}
       </div>
       <div className="route-draft__footer">
-        <button
-          type="button"
-          className="route-draft__action route-draft__action--primary"
+        <PrimaryButton
+          variant="default"
           disabled={!canSend}
           onClick={() => onSend(route.id)}
         >
           Назначить
-        </button>
+        </PrimaryButton>
         <button
           type="button"
           className="route-draft__action route-draft__action--icon"

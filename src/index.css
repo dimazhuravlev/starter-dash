@@ -3,6 +3,7 @@
 @import './shared/ui/AppHeader.css';
 @import './shared/ui/AppSubheader.css';
 @import './shared/ui/Card.css';
+@import './shared/ui/PrimaryButton.css';
 @import './components/MapWidget.css';
 @import './components/MapboxMap.css';
 @import './screens/DashboardMobileMap.css';
@@ -12,24 +13,83 @@
 @import './entities/RouteDeliveryCard.css';
 @import './screens/DebugPanelScreen.css';
 
+/* ========== Design tokens: colors & typography (dark theme) ========== */
 :root {
-  font-family: 'Pretendard', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    sans-serif;
-  line-height: 1.4;
-  font-weight: 500;
-  color: #ffffff;
-  background-color: #0F1215;
+  /* Typography — unified text styles (font shorthand: weight size/line-height family) */
+  --font-family: 'Pretendard', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --type-subtitle: 600 12px/14px var(--font-family);
+  --type-text: 600 14px/16px var(--font-family);
+  --type-title: 600 18px/20px var(--font-family);
+
+  /* LAYER 1 — RAW PALETTE (do NOT use directly in components) */
+  --neutral-dark-1000: #0F1215;
+  --neutral-dark-900:  #22262B;
+  --neutral-dark-800:  #34373C;
+
+  --white-100: #ffffff;
+  --white-40:  rgba(255,255,255,.40);
+  --white-20:  rgba(255,255,255,.20);
+  --white-10:  rgba(255,255,255,.10);
+  --white-08:  rgba(255,255,255,.08);
+  --white-06:  rgba(255,255,255,.06);
+  --white-04:  rgba(255,255,255,.04);
+
+  --black-12: rgba(0,0,0,.12);
+
+  --green-600: #03ab00;
+  --green-20:  rgba(3,171,0,.20);
+
+  --red-500: #E8306E;
+  --red-900: #570F27;
+  --red-20:  rgba(232,48,110,.20);
+
+  /* LAYER 2 — SYSTEM TOKENS (use these in components) */
+  --surface-0: var(--neutral-dark-1000);
+  --surface-1: var(--neutral-dark-900);
+  --surface-2: var(--neutral-dark-800);
+
+  --fill-1: var(--white-04);
+  --fill-2: var(--white-06);
+  --fill-3: var(--white-08);
+  --fill-4: var(--white-10);
+  --fill-5: var(--white-20);
+
+  --text-1: var(--white-100);
+  --text-2: var(--white-40);
+  --text-3: var(--white-20);
+  --text-inverted: var(--neutral-dark-1000);
+
+  --stroke-1: var(--white-04);
+  --stroke-2: var(--white-06);
+  --stroke-3: var(--white-10);
+
+  --overlay-hover: var(--black-12);
+
+  --accent: var(--green-600);
+  --danger: var(--red-500);
+
+  --accent-surface: var(--green-20);
+  --danger-surface-strong: var(--red-900);
+  --danger-surface: var(--red-20);
+}
+
+/* Base styles using tokens */
+:root {
+  font-family: var(--font-family);
+  font-size: 14px;
+  line-height: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+  background-color: var(--surface-0);
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   corner-shape: smooth;
+}
 
-  --bg: #0F1215;
-  --column-bg: rgba(255, 255, 255, 0.04);
-  --card-bg: #292d32;
-  --text-primary: #ffffff;
-  --text-muted: rgba(255, 255, 255, 0.4);
-  --green: #03ab00;
+/* Placeholder for future light theme */
+[data-theme="light"] {
+  /* Colors and typography overrides for light theme will go here */
 }
 
 * {
@@ -46,13 +106,22 @@
   display: none;
 }
 
+/* Формы и кнопки — единая типографика (браузер по умолчанию часто подставляет Arial) */
+input,
+button,
+select,
+textarea,
+optgroup {
+  font-family: var(--font-family);
+}
+
 html,
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
   height: 100%;
-  background-color: var(--bg);
+  background-color: var(--surface-0);
 }
 
 #root {

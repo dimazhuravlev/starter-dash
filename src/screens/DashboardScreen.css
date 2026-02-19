@@ -33,7 +33,7 @@
   margin-bottom: 8px;
   padding-bottom: 8px;
   box-sizing: border-box;
-  background: var(--bg);
+  background: var(--surface-0);
 }
 
 .dashboard__right {
@@ -44,7 +44,7 @@
   padding-top: 24px;
   margin-right: 8px;
   margin-bottom: 8px;
-  background: var(--bg);
+  background: var(--surface-0);
 }
 
 .dashboard__right--resizing {
@@ -75,7 +75,7 @@
   bottom: 0;
   width: 1px;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--stroke-2);
   opacity: 0;
   transition: opacity 200ms ease;
 }
@@ -179,7 +179,7 @@
   bottom: 0;
   width: 1px;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-2);
 }
 
 .dashboard__column.dashboard__column--map {

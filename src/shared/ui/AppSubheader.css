@@ -4,7 +4,7 @@
   display: flex;
   align-items: stretch;
   padding: 0 0 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--stroke-2);
 }
 
 .app-subheader__tabs {
@@ -21,12 +21,9 @@
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
-  color: var(--text-muted);
-  font-family: Pretendard;
-  font-size: 14px;
+  color: var(--text-2);
+  font: var(--type-text);
   font-style: normal;
-  font-weight: 600;
-  line-height: 16px;
   white-space: nowrap;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease;
@@ -47,14 +44,14 @@
 }
 
 .app-subheader__tab:hover {
-  color: var(--text-primary);
+  color: var(--text-1);
 }
 
 .app-subheader__tab:hover::before {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--fill-3);
 }
 
 .app-subheader__tab--active {
-  color: #FFF;
+  color: var(--text-1);
   border-bottom-color: currentColor;
 }
