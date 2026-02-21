@@ -9,6 +9,7 @@ const MIN_RIGHT_WIDTH = 200
 const MAX_RIGHT_WIDTH_RATIO = 0.8
 
 export type DashboardMapColumnProps = {
+  theme: 'dark' | 'light'
   rightColumnRef: RefObject<HTMLDivElement | null>
   resizerRef: RefObject<HTMLDivElement | null>
   mapViewMode: MapViewMode
@@ -36,6 +37,7 @@ export type DashboardMapColumnProps = {
 }
 
 export function DashboardMapColumn({
+  theme,
   rightColumnRef,
   resizerRef,
   mapViewMode,
@@ -90,6 +92,7 @@ export function DashboardMapColumn({
 
       <section className="dashboard__column dashboard__column--map">
         <MapWidget
+          theme={theme}
           orders={orders}
           orderMarkers={orderMarkers}
           courierMarkers={courierMarkers}

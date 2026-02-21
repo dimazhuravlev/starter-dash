@@ -79,7 +79,11 @@ export function RoutesColumn({
           <span>Маршруты</span>
           {assignedRoutes.length > 0 && <span className="column__title-count">{assignedRoutes.length}</span>}
         </span>
-        <img src={plusIcon} alt="" width={16} height={16} />
+        <span
+          className="column__title-icon"
+          style={{ ['--icon-src' as string]: `url(${plusIcon})` }}
+          aria-hidden
+        />
       </button>
       {(draftRoutes.length > 0 || draftSectionExiting) ? (
         <div

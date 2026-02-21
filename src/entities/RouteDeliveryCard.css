@@ -1,7 +1,14 @@
+/* Цвет линии merger — как у блоков заказов (surface-2) */
+.card--delivery {
+  --merger-gray: var(--surface-2);
+}
+
 .delivery__edit-btn {
   position: absolute;
   top: 11px;
   right: 11px;
+  z-index: 2;
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -18,15 +25,18 @@
   outline: none;
 }
 
-.delivery__edit-btn img {
-  display: block;
+.delivery__edit-icon {
+  display: inline-block;
   width: 12px;
   height: 12px;
+  background-color: var(--fill-6);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
   opacity: 0.4;
   transition: opacity 200ms ease;
 }
 
-.delivery__edit-btn:hover img {
+.delivery__edit-btn:hover .delivery__edit-icon {
   opacity: 0.55;
 }
 

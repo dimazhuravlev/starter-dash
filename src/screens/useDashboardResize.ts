@@ -99,7 +99,9 @@ export function useDashboardResize(isMobileMapOpen: boolean) {
     const dashboard = dashboardRef.current
     if (!dashboard) return
     const updateWidth = () => {
-      setDashboardWidth(dashboard.getBoundingClientRect().width)
+      const w = dashboard.getBoundingClientRect().width
+      // Не перезаписывать ширину нулём, когда панель дашборда скрыта (display: none) — иначе при возврате на экран будет скачок
+      if (w > 0) setDashboardWidth(w)
     }
     const ro = new ResizeObserver(updateWidth)
     ro.observe(dashboard)

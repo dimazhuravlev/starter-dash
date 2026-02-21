@@ -85,6 +85,18 @@ const createOrder = (
 
 const shuffle = <T,>(items: T[]): T[] => [...items].sort(() => Math.random() - 0.5)
 
+/** Выбирает count случайных неповторяющихся индексов из [0, max) */
+const pickRandomIndices = (max: number, count: number): number[] => {
+  const pool = Array.from({ length: max }, (_, i) => i)
+  const result: number[] = []
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const j = Math.floor(Math.random() * pool.length)
+    result.push(pool[j])
+    pool.splice(j, 1)
+  }
+  return result
+}
+
 export const createSeedOrders = ({
   now,
   nextOrderId,
@@ -102,6 +114,8 @@ export const createSeedOrders = ({
   const routeStageMs = getRouteStageMs(routeStageMin)
   const statuses = shuffle<OrderStatus>(['cooking', 'cooking', 'waiting_cook'])
   const orders: Record<string, Order> = {}
+  const seedCount = 3
+  const randomAddressIndices = pickRandomIndices(addressSeeds.length, seedCount)
 
   statuses.forEach((status, index) => {
     const orderId = `order_${nextOrderId + index}`
@@ -121,7 +135,7 @@ export const createSeedOrders = ({
     const baseOrder = createOrder(
       orderId,
       createdAt,
-      nextOrderId + index,
+      randomAddressIndices[index],
       orderStageMin,
       orderSlaOptionsMin,
     )

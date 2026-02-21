@@ -4,6 +4,7 @@ import { MapWidget, type OrderMarkerItem } from '../components/MapWidget'
 import { PrimaryButton } from '../shared/ui/PrimaryButton'
 
 export type DashboardMobileMapProps = {
+  theme: 'dark' | 'light'
   isOpen: boolean
   onToggle: () => void
   orders: Record<string, Order>
@@ -25,6 +26,7 @@ export type DashboardMobileMapProps = {
 }
 
 export function DashboardMobileMap({
+  theme,
   isOpen,
   onToggle,
   orders,
@@ -59,6 +61,7 @@ export function DashboardMobileMap({
         <div className="mobile-map-overlay" role="dialog" aria-modal="true" aria-label="Карта">
           <div className="mobile-map-overlay__map">
             <MapWidget
+              theme={theme}
               orders={orders}
               orderMarkers={orderMarkers}
               courierMarkers={courierMarkers}

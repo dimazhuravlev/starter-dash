@@ -6,6 +6,8 @@ type PrimaryButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'default' | 'mobile' | 'ghost'
   /** Выделенное состояние (например, выбранная скорость в дебаг-панели) */
   active?: boolean
+  /** Иконка 16px перед текстом (например, Done для «Назначить»). Цвет — --text-inverted. */
+  iconStart?: string
 }
 
 export function PrimaryButton({
@@ -13,6 +15,7 @@ export function PrimaryButton({
   variant = 'default',
   active = false,
   className = '',
+  iconStart,
   ...rest
 }: PrimaryButtonProps) {
   const base = 'primary-btn'
@@ -20,12 +23,20 @@ export function PrimaryButton({
     variant === 'mobile' ? 'primary-btn--mobile' :
     variant === 'ghost' ? 'primary-btn--ghost' : 'primary-btn--default'
   const activeClass = active ? 'primary-btn--active' : ''
+  const withIconClass = iconStart ? 'primary-btn--with-icon' : ''
   return (
     <button
       type="button"
-      className={`${base} ${variantClass} ${activeClass} ${className}`.trim()}
+      className={`${base} ${variantClass} ${activeClass} ${withIconClass} ${className}`.trim()}
       {...rest}
     >
+      {iconStart ? (
+        <span
+          className="primary-btn__icon"
+          style={{ ['--icon-src' as string]: `url(${iconStart})` }}
+          aria-hidden
+        />
+      ) : null}
       {children}
     </button>
   )

@@ -94,11 +94,15 @@
   opacity: 1;
 }
 
+.app-header__icon,
 .app-header__user-icon {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
   display: block;
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 
 .app-header__user-name {

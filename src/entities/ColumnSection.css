@@ -34,6 +34,18 @@
   gap: 6px;
 }
 
+/* Иконка Plus в заголовке «Маршруты» — цвет --fill-6 */
+.column__title-icon {
+  flex-shrink: 0;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-color: var(--fill-6);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  opacity: 0.7;
+}
+
 .column__title-with-count {
   display: inline-flex;
   align-items: center;

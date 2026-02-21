@@ -39,6 +39,12 @@ export function useDashboardMapFocus({
     { lng: number; lat: number }[] | null
   >(null)
   const [mapViewMode, setMapViewMode] = useState<MapViewMode>('half')
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const focusMapOnRoute = useCallback((routeId: string) => {
     const state = useDashboardStore.getState()
@@ -77,7 +83,7 @@ export function useDashboardMapFocus({
         if (highlightedOrderIdFromMapRef.current === marker.id) {
           setHighlightedOrderIdFromMap(null)
           requestAnimationFrame(() => {
-            setHighlightedOrderIdFromMap(marker.id)
+            if (mountedRef.current) setHighlightedOrderIdFromMap(marker.id)
           })
         } else {
           setHighlightedOrderIdFromMap(marker.id)
@@ -97,11 +103,15 @@ export function useDashboardMapFocus({
     const allOrdersDelivered =
       route && route.orderIds.length > 0 && route.orderIds.every((id) => orders[id]?.status === 'delivered')
     if (!routeCardVisible || allOrdersDelivered) {
-      requestAnimationFrame(() => {
-        setFocusedRouteId(null)
-        setMapFocusBounds(null)
-        setFocusedRoutePathCoords(null)
+      let rafId = 0
+      rafId = requestAnimationFrame(() => {
+        if (mountedRef.current) {
+          setFocusedRouteId(null)
+          setMapFocusBounds(null)
+          setFocusedRoutePathCoords(null)
+        }
       })
+      return () => cancelAnimationFrame(rafId)
     }
   }, [focusedRouteId, routes, orders])
 
@@ -151,7 +161,7 @@ export function useDashboardMapFocus({
       attachOrderToRoute(routeId, orderId)
       focusMapOnRoute(routeId)
       requestAnimationFrame(() => {
-        setHighlightedOrderIdFromMap(orderId)
+        if (mountedRef.current) setHighlightedOrderIdFromMap(orderId)
       })
     },
     [draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],

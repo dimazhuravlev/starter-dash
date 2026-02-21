@@ -105,6 +105,8 @@ type MapboxMapProps = {
   onCourierMarkerClick?: (marker: CourierMarkerItem) => void
   /** Скрыть селектор вида карты (для фулскрин-оверлея на мобильных) */
   hideViewSelector?: boolean
+  /** Тема интерфейса (при смене меняется lightPreset: day / night в стиле Standard) */
+  theme?: 'dark' | 'light'
 }
 
 export type MapViewMode = 'half' | 'none'
@@ -181,12 +183,9 @@ function createRestaurantMarkerElement(): HTMLDivElement {
   const wrap = document.createElement('div')
   wrap.className = 'mapbox-restaurant-marker'
   wrap.setAttribute('aria-hidden', 'true')
-  const icon = document.createElement('img')
+  const icon = document.createElement('span')
   icon.className = 'mapbox-restaurant-marker__icon'
-  icon.src = restaurantIconUrl
-  icon.width = 16
-  icon.height = 16
-  icon.alt = ''
+  icon.style.setProperty('--icon-src', `url("${restaurantIconUrl}")`)
   wrap.appendChild(icon)
   return wrap
 }
@@ -319,6 +318,7 @@ export function MapboxMap({
   courierMarkers = [],
   onCourierMarkerClick,
   hideViewSelector = false,
+  theme = 'dark',
 }: MapboxMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -370,14 +370,27 @@ export function MapboxMap({
     }
 
     initializedRef.current = true
+    let cancelled = false
     mapboxgl.accessToken = mapboxToken
 
+    const isDark = theme === 'dark'
     const map = new mapboxgl.Map({
       container,
-      style: 'mapbox://styles/mapbox/dark-v11',
+      style: isDark ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/standard',
       center: DEFAULT_CENTER,
       zoom: RESTAURANT_FOCUS_ZOOM,
       attributionControl: false,
+      ...(isDark
+        ? {}
+        : {
+            config: {
+              basemap: {
+                lightPreset: 'day',
+                theme: 'faded',
+                showPointOfInterestLabels: false,
+              },
+            },
+          }),
     })
 
     mapRef.current = map
@@ -387,10 +400,18 @@ export function MapboxMap({
       if (resizeRafId !== null) return
       resizeRafId = requestAnimationFrame(() => {
         resizeRafId = null
-        map.resize()
+        const rect = container.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          try {
+            map.resize()
+          } catch {
+            // Контейнер мог стать невидимым (панель скрыта) или карта удалена
+          }
+        }
       })
     }
     map.on('load', () => {
+      if (cancelled) return
       onResize()
       if (!map.getSource('route')) {
         map.addSource('route', {
@@ -412,6 +433,7 @@ export function MapboxMap({
             'line-width': 14,
             'line-blur': 12,
             'line-opacity': 0,
+            'line-emissive-strength': 1,
           },
         })
       }
@@ -439,36 +461,71 @@ export function MapboxMap({
             ],
             'line-width': 3,
             'line-dasharray': [1.5, 2],
+            'line-emissive-strength': 1,
           },
         })
       }
-      setMapReady(true)
+      if (!cancelled) setMapReady(true)
     })
 
     const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(container)
 
     return () => {
+      cancelled = true
+      // Не вызываем setMapReady(false) при смене темы — иначе лишний рендер ломает переход (пустой экран)
+      onClearFocusRef.current = () => {}
+      onOrderAddToRouteRef.current = undefined
+      onMapBackgroundClickRef.current = () => {}
       resizeObserver.disconnect()
       if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
-      map.remove()
+      try {
+        map.remove()
+      } catch {
+        // При активном маршруте/анимации remove() иногда бросает — всё равно сбрасываем refs
+      }
       mapRef.current = null
       initializedRef.current = false
     }
-  }, [])
+  }, [theme])
+
+  /** Светлая тема: Standard с preset day и темой faded (Cool). Тёмная: dark-v11. line-emissive-strength по теме. */
+  useEffect(() => {
+    if (!mapRef.current || !mapReady) return
+    const map = mapRef.current
+    if (theme === 'light') {
+      try {
+        map.setConfigProperty('basemap', 'lightPreset', 'day')
+        map.setConfigProperty('basemap', 'theme', 'faded')
+      } catch {
+        // Standard style only
+      }
+    }
+    const emissive = theme === 'dark' ? 1 : 0
+    try {
+      if (map.getLayer('route-line')) map.setPaintProperty('route-line', 'line-emissive-strength', emissive)
+      if (map.getLayer('route-line-glow')) map.setPaintProperty('route-line-glow', 'line-emissive-strength', emissive)
+    } catch {
+      // dark-v11 может не поддерживать line-emissive-strength
+    }
+  }, [theme, mapReady])
 
   useEffect(() => {
     if (mapViewMode === 'none' || !focusCoords || !mapRef.current) return
     const map = mapRef.current
     let cancelled = false
     const center: [number, number] = [focusCoords.lng, focusCoords.lat]
-    map.flyTo({
-      center,
-      zoom: FOCUS_ZOOM,
-      duration: FLY_DURATION_MS,
-      curve: 0.35,
-      essential: true,
-    })
+    try {
+      map.flyTo({
+        center,
+        zoom: FOCUS_ZOOM,
+        duration: FLY_DURATION_MS,
+        curve: 0.35,
+        essential: true,
+      })
+    } catch {
+      return
+    }
     const onMoveEnd = () => {
       if (!cancelled) onClearFocusRef.current?.()
     }
@@ -487,13 +544,17 @@ export function MapboxMap({
       [focusBounds.sw.lng, focusBounds.sw.lat],
       [focusBounds.ne.lng, focusBounds.ne.lat],
     ]
-    map.fitBounds(
-      [
-        [swLng, swLat],
-        [neLng, neLat],
-      ],
-      { padding: FIT_BOUNDS_PADDING_PX, duration: FIT_BOUNDS_DURATION_MS, maxZoom: 16 },
-    )
+    try {
+      map.fitBounds(
+        [
+          [swLng, swLat],
+          [neLng, neLat],
+        ],
+        { padding: FIT_BOUNDS_PADDING_PX, duration: FIT_BOUNDS_DURATION_MS, maxZoom: 16 },
+      )
+    } catch {
+      return
+    }
     if (clearFocusOnMoveEnd) {
       const onMoveEnd = () => {
         if (!cancelled) onClearFocusRef.current?.()
@@ -698,22 +759,34 @@ export function MapboxMap({
     if (!mapRef.current || !mapReady || !mapRef.current.getLayer('route-line')) return
     const map = mapRef.current
     if (!isRouteDraft) {
-      map.setPaintProperty('route-line', 'line-opacity', 1)
+      try {
+        map.setPaintProperty('route-line', 'line-opacity', 1)
+      } catch {
+        // Standard (светлая тема) может вести себя иначе
+      }
       return
     }
     const startTime = performance.now()
     let rafId: number
     const tick = () => {
-      const elapsed = performance.now() - startTime
-      const t = (elapsed / ROUTE_PULSE_DURATION_MS) * 2 * Math.PI
-      const opacity = 0.7 + 0.3 * Math.cos(t)
-      map.setPaintProperty('route-line', 'line-opacity', opacity)
+      try {
+        const elapsed = performance.now() - startTime
+        const t = (elapsed / ROUTE_PULSE_DURATION_MS) * 2 * Math.PI
+        const opacity = 0.7 + 0.3 * Math.cos(t)
+        map.setPaintProperty('route-line', 'line-opacity', opacity)
+      } catch {
+        return
+      }
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(rafId)
-      map.setPaintProperty('route-line', 'line-opacity', 1)
+      try {
+        if (map.getLayer('route-line')) map.setPaintProperty('route-line', 'line-opacity', 1)
+      } catch {
+        // карта/слой могли быть удалены
+      }
     }
   }, [mapReady, isRouteDraft])
 
@@ -730,20 +803,28 @@ export function MapboxMap({
     const startTime = performance.now()
     let rafId: number
     const tick = () => {
-      const elapsed = performance.now() - startTime
-      if (elapsed >= ROUTE_FLASH_DURATION_MS) {
-        map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+      try {
+        const elapsed = performance.now() - startTime
+        if (elapsed >= ROUTE_FLASH_DURATION_MS) {
+          map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+          return
+        }
+        const t = elapsed / ROUTE_FLASH_DURATION_MS
+        const opacity = t < 0.35 ? (t / 0.35) * 0.6 : 0.6 * (1 - (t - 0.35) / 0.65)
+        map.setPaintProperty('route-line-glow', 'line-opacity', opacity)
+      } catch {
         return
       }
-      const t = elapsed / ROUTE_FLASH_DURATION_MS
-      const opacity = t < 0.35 ? (t / 0.35) * 0.6 : 0.6 * (1 - (t - 0.35) / 0.65)
-      map.setPaintProperty('route-line-glow', 'line-opacity', opacity)
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
     return () => {
       cancelAnimationFrame(rafId)
-      if (map.getLayer('route-line-glow')) map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+      try {
+        if (map.getLayer('route-line-glow')) map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+      } catch {
+        // Standard (светлая тема) или карта удалена
+      }
     }
   }, [mapReady, routeFlashTrigger])
 
@@ -755,23 +836,27 @@ export function MapboxMap({
     const startTime = performance.now()
     let rafId: number
     const tick = () => {
-      const elapsed = performance.now() - startTime
-      const phase = (elapsed / ROUTE_GLOW_CYCLE_MS) % 1
-      map.setPaintProperty('route-line', 'line-gradient', [
-        'interpolate',
-        ['linear'],
-        ['%', ['+', ['-', ['line-progress'], phase], 1], 1],
-        0,
-        accent,
-        0.45,
-        accent,
-        0.5,
-        '#B8FFB7',
-        0.55,
-        accent,
-        1,
-        accent,
-      ])
+      try {
+        const elapsed = performance.now() - startTime
+        const phase = (elapsed / ROUTE_GLOW_CYCLE_MS) % 1
+        map.setPaintProperty('route-line', 'line-gradient', [
+          'interpolate',
+          ['linear'],
+          ['%', ['+', ['-', ['line-progress'], phase], 1], 1],
+          0,
+          accent,
+          0.45,
+          accent,
+          0.5,
+          '#B8FFB7',
+          0.55,
+          accent,
+          1,
+          accent,
+        ])
+      } catch {
+        return
+      }
       rafId = requestAnimationFrame(tick)
     }
     rafId = requestAnimationFrame(tick)
@@ -786,23 +871,37 @@ export function MapboxMap({
     const hasGlowLayer = map.getLayer('route-line-glow') != null
     if (!hasRouteLayer) return
     if (mapViewMode === 'none') {
-      const startOpacity = map.getPaintProperty('route-line', 'line-opacity') as number | undefined
+      let startOpacity: number | undefined
+      try {
+        startOpacity = map.getPaintProperty('route-line', 'line-opacity') as number | undefined
+      } catch {
+        return
+      }
       const start = performance.now()
       const startVal = typeof startOpacity === 'number' ? startOpacity : 1
       let rafId: number
       const tick = () => {
-        const elapsed = performance.now() - start
-        const t = Math.min(elapsed / ROUTE_COLLAPSE_DURATION_MS, 1)
-        const opacity = startVal * (1 - t)
-        map.setPaintProperty('route-line', 'line-opacity', opacity)
-        if (hasGlowLayer) map.setPaintProperty('route-line-glow', 'line-opacity', opacity * 0.6)
+        let t = 1
+        try {
+          const elapsed = performance.now() - start
+          t = Math.min(elapsed / ROUTE_COLLAPSE_DURATION_MS, 1)
+          const opacity = startVal * (1 - t)
+          map.setPaintProperty('route-line', 'line-opacity', opacity)
+          if (hasGlowLayer) map.setPaintProperty('route-line-glow', 'line-opacity', opacity * 0.6)
+        } catch {
+          return
+        }
         if (t < 1) rafId = requestAnimationFrame(tick)
       }
       rafId = requestAnimationFrame(tick)
       return () => cancelAnimationFrame(rafId)
     }
-    map.setPaintProperty('route-line', 'line-opacity', 1)
-    if (hasGlowLayer) map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+    try {
+      map.setPaintProperty('route-line', 'line-opacity', 1)
+      if (hasGlowLayer) map.setPaintProperty('route-line-glow', 'line-opacity', 0)
+    } catch {
+      // Standard (светлая тема) или слой удалён
+    }
     return undefined
   }, [mapReady, mapViewMode])
 
@@ -865,7 +964,7 @@ export function MapboxMap({
       <div className="mapbox-map-overlay" aria-hidden="true" />
       {mapViewMode === 'none' ? (
         <div className="mapbox-map-expand-icon" aria-hidden="true">
-          <img src={arrowLeftIconUrl} alt="" width={16} height={16} />
+          <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${arrowLeftIconUrl}")` }} />
         </div>
       ) : null}
       <div className="mapbox-map-controls">
@@ -877,7 +976,7 @@ export function MapboxMap({
             title="Центрировать на ресторане"
             aria-label="Центрировать на ресторане"
           >
-            <img src={restaurantIconUrl} alt="" width={16} height={16} />
+            <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${restaurantIconUrl}")` }} aria-hidden />
           </button>
         ) : null}
         {!hideViewSelector ? (
@@ -901,7 +1000,7 @@ export function MapboxMap({
                 aria-pressed={mapViewMode === value}
                 aria-label={title}
               >
-                <img src={icon} alt="" width={16} height={16} />
+                <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${icon}")` }} aria-hidden />
               </button>
             ))}
           </div>

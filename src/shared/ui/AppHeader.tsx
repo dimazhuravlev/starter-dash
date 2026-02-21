@@ -9,6 +9,8 @@ type AppHeaderProps = {
   onTabClick: () => void
   isDebug: boolean
   onDebugClick: () => void
+  theme: 'dark' | 'light'
+  onThemeToggle: () => void
 }
 
 export function AppHeader({
@@ -18,6 +20,8 @@ export function AppHeader({
   onTabClick,
   isDebug,
   onDebugClick,
+  theme,
+  onThemeToggle,
 }: AppHeaderProps) {
   return (
     <header className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
@@ -44,7 +48,16 @@ export function AppHeader({
       </div>
       <div className="app-header__right">
         <button type="button" className="route-draft__action route-draft__action--icon" aria-label="Настройки">
-          <img src={settingsIcon} alt="" aria-hidden />
+          <span className="app-header__icon" style={{ ['--icon-src' as string]: `url(${settingsIcon})` }} aria-hidden />
+        </button>
+        <button
+          type="button"
+          className={`route-draft__action app-header__user-btn${theme === 'light' ? ' app-header__user-btn--active' : ''}`}
+          onClick={onThemeToggle}
+          aria-pressed={theme === 'light'}
+          aria-label="Переключить тему"
+        >
+          Тема
         </button>
         <button
           type="button"
@@ -54,7 +67,7 @@ export function AppHeader({
           Дебаг
         </button>
         <button type="button" className="route-draft__action app-header__user-btn" aria-label="Выход">
-          <img src={exitIcon} alt="" className="app-header__user-icon" width={16} height={16} aria-hidden />
+          <span className="app-header__user-icon" style={{ ['--icon-src' as string]: `url(${exitIcon})` }} aria-hidden />
           <span className="app-header__user-name">Попова И.</span>
         </button>
       </div>

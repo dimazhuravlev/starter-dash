@@ -69,11 +69,22 @@
   border-bottom-left-radius: 12px;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
-  transition: opacity 400ms ease-in-out, border-radius 400ms ease-in-out, background-color 350ms ease-in-out;
+  transition: opacity 400ms ease-in-out, border-radius 400ms ease-in-out;
 }
 
-.mapbox-map-wrapper--collapsed:hover .mapbox-map-overlay {
-  background-color: var(--surface-2);
+.mapbox-map-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--overlay-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.mapbox-map-wrapper--collapsed:hover .mapbox-map-overlay::before {
+  opacity: 1;
 }
 
 /* В свернутом режиме видна только правая полоска контейнера — позиционируем от правого края (8px от левого края полоски) */
@@ -94,16 +105,18 @@
   transform: translate(-4px, -50%);
 }
 
-.mapbox-map-expand-icon img {
+.mapbox-map-expand-icon .mapbox-map-icon {
   display: block;
   width: 16px;
   height: 16px;
-  filter: brightness(0) invert(1);
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
   opacity: 0.6;
   transition: opacity 350ms ease-in-out;
 }
 
-.mapbox-map-wrapper--collapsed:hover .mapbox-map-expand-icon img {
+.mapbox-map-wrapper--collapsed:hover .mapbox-map-expand-icon .mapbox-map-icon {
   opacity: 1;
 }
 
@@ -148,12 +161,13 @@
   opacity: 1;
 }
 
-.mapbox-map-focus-restaurant-btn img {
+.mapbox-map-focus-restaurant-btn .mapbox-map-icon {
   display: block;
   width: 16px;
   height: 16px;
-  object-fit: contain;
-  filter: brightness(0) invert(1);
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 
 .mapbox-map-view-selector {
@@ -196,12 +210,13 @@
   background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-4) 100%);
 }
 
-.mapbox-map-view-selector__btn img {
+.mapbox-map-view-selector__btn .mapbox-map-icon {
   display: block;
   width: 16px;
   height: 16px;
-  object-fit: contain;
-  filter: brightness(0) invert(1);
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 
 .mapbox-map-placeholder {
@@ -336,7 +351,9 @@
   width: 16px;
   height: 16px;
   display: block;
-  object-fit: contain;
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
   transition: width 400ms ease, height 400ms ease;
 }
 
@@ -378,28 +395,14 @@
   display: none;
 }
 
-.mapbox-courier-marker__label {
-  max-width: 120px;
-  color: var(--text-1);
-  text-align: center;
-  text-shadow:
-    0 0 1px var(--surface-0),
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 4px rgba(0, 0, 0, 0.5);
-  font: var(--type-subtitle);
-  font-style: normal;
-  white-space: normal;
-  word-break: break-word;
-}
-
+.mapbox-courier-marker__label,
 .mapbox-order-marker__label {
   max-width: 120px;
   color: var(--text-1);
   text-align: center;
   text-shadow:
-    0 0 1px var(--surface-0),
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 4px rgba(0, 0, 0, 0.5);
+    0 0 2px color-mix(in srgb, var(--surface-0) 100%, transparent),
+    0 0px 5px color-mix(in srgb, var(--surface-0) 60%, transparent);
   font: var(--type-subtitle);
   font-style: normal;
   white-space: normal;

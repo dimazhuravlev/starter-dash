@@ -3,6 +3,7 @@ import { type Courier, type Order, type Route } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import crossIcon from '../assets/Cross.svg'
 import deleteIcon from '../assets/Delete.svg'
+import doneIcon from '../assets/Done.svg'
 import plusIcon from '../assets/Plus.svg'
 import {
   clearDndPayload,
@@ -70,6 +71,8 @@ export function RouteDraftCard({
   const [dragOverKind, setDragOverKind] = useState<'courier' | 'order' | null>(null)
   const [reorderDropIndex, setReorderDropIndex] = useState<number | null>(null)
   const [isExiting, setIsExiting] = useState(false)
+  const [hasPlayedEnterAnimation, setHasPlayedEnterAnimation] = useState(false)
+  const [hasPlayedDraftAppearAnimation, setHasPlayedDraftAppearAnimation] = useState(false)
   const exitingForSendRef = useRef(false)
 
   useEffect(() => {
@@ -169,7 +172,15 @@ export function RouteDraftCard({
     onExiting?.()
   }
 
-  const handleExitingAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
+  const handleAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
+    if (event.animationName === 'route-draft-appear') {
+      setHasPlayedEnterAnimation(true)
+      return
+    }
+    if (event.animationName === 'draft-card-enter') {
+      setHasPlayedDraftAppearAnimation(true)
+      return
+    }
     if (event.animationName !== 'route-draft-disappear' || !isExiting) return
     if (exitingForSendRef.current) {
       onSendAfterExit?.(route.id)
@@ -191,7 +202,7 @@ export function RouteDraftCard({
 
   return (
     <div
-      className={`card card--route card--route-empty${isExiting ? ' card--route-exiting' : ''}${isJustAppeared ? ' card--draft-appearing' : ''}${dragOverKind === 'courier' ? ' card--drag-over-courier' : ''}${dragOverKind === 'order' ? ' card--drag-over-order' : ''}${canShowRouteOnMap && onFocusOnMap ? ' card--focus-on-map' : ''}`}
+      className={`card card--route card--route-empty${!hasPlayedEnterAnimation ? ' card--route-appearing' : ''}${isExiting ? ' card--route-exiting' : ''}${isJustAppeared && !hasPlayedDraftAppearAnimation ? ' card--draft-appearing' : ''}${dragOverKind === 'courier' ? ' card--drag-over-courier' : ''}${dragOverKind === 'order' ? ' card--drag-over-order' : ''}${canShowRouteOnMap && onFocusOnMap ? ' card--focus-on-map' : ''}`}
       role={canShowRouteOnMap && onFocusOnMap ? 'button' : undefined}
       tabIndex={canShowRouteOnMap && onFocusOnMap ? 0 : undefined}
       onClick={canShowRouteOnMap && onFocusOnMap ? handleCardClick : undefined}
@@ -200,7 +211,7 @@ export function RouteDraftCard({
       onDragOver={handleDragOver}
       onDragOverCapture={handleDragOverCapture}
       onDragLeave={handleDragLeave}
-      onAnimationEnd={handleExitingAnimationEnd}
+      onAnimationEnd={handleAnimationEnd}
     >
       <div className="route-draft__header">
         <div className="route-draft__header-left">
@@ -213,14 +224,18 @@ export function RouteDraftCard({
                   onClick={() => onDetachCourier(route.id)}
                   aria-label="Удалить курьера"
                 >
-                  <img src={crossIcon} alt="" width={16} height={16} aria-hidden />
+                  <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
                 </button>
                 <span className="route-draft__courier-name">{selectedCourier.name}</span>
               </>
             ) : (
               <>
                 <span className="route-draft__header-icon">
-                  <img src={plusIcon} alt="" className="route-draft__plus-icon" width={16} height={16} aria-hidden />
+                  <span
+                    className="route-draft__plus-icon"
+                    style={{ ['--icon-src' as string]: `url(${plusIcon})` }}
+                    aria-hidden
+                  />
                 </span>
                 <span className="route-draft__placeholder-text">Выберите курьера</span>
                 <select
@@ -300,7 +315,7 @@ export function RouteDraftCard({
                     onClick={() => onDetachOrder(route.id, orderId)}
                     aria-label="Удалить заказ"
                   >
-                    <img src={crossIcon} alt="" width={16} height={16} aria-hidden />
+                    <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
                   </button>
                   <span className="route-draft__order-title">
                     {order ? order.address : orderId}
@@ -324,10 +339,9 @@ export function RouteDraftCard({
                   : { isBehindSchedule: false }
                 const belowRed = nextSla.isOverdue || nextRisk.isBehindSchedule
                 const gradientId = `merger-${route.id}-${index}`
-                const gray = getColorToken('--surface-2')
                 const red = getColorToken('--danger-surface-strong')
-                const topColor = aboveRed ? red : gray
-                const bottomColor = belowRed ? red : gray
+                const topColor = aboveRed ? red : 'var(--merger-gray)'
+                const bottomColor = belowRed ? red : 'var(--merger-gray)'
                 const isDropTarget = reorderDropIndex === index + 1
                 return (
                   <div
@@ -351,7 +365,11 @@ export function RouteDraftCard({
         })}
         {canAttachOrder ? (
           <div className="route-draft__placeholder route-draft__placeholder--block route-draft__placeholder--empty">
-            <img src={plusIcon} alt="" className="route-draft__plus-icon" width={16} height={16} aria-hidden />
+            <span
+              className="route-draft__plus-icon"
+              style={{ ['--icon-src' as string]: `url(${plusIcon})` }}
+              aria-hidden
+            />
             <span className="route-draft__placeholder-text">Добавьте заказы</span>
             <select
               className="route-draft__select"
@@ -375,6 +393,7 @@ export function RouteDraftCard({
       <div className="route-draft__footer">
         <PrimaryButton
           variant="default"
+          iconStart={doneIcon}
           disabled={!canSend}
           onClick={() => onSend(route.id)}
         >
@@ -386,7 +405,7 @@ export function RouteDraftCard({
           onClick={handleDeleteClick}
           aria-label="Удалить маршрут"
         >
-          <img src={deleteIcon} alt="" aria-hidden />
+          <span className="route-draft__action-icon" style={{ ['--icon-src' as string]: `url(${deleteIcon})` }} aria-hidden />
         </button>
       </div>
     </div>

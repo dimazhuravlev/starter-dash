@@ -13,7 +13,9 @@
 @import './entities/RouteDeliveryCard.css';
 @import './screens/DebugPanelScreen.css';
 
-/* ========== Design tokens: colors & typography (dark theme) ========== */
+/* ========== Design tokens: colors & typography ========== */
+
+/* LAYER 1 — Raw palette: dark (default) and light. Theme overrides only these. */
 :root {
   /* Typography — unified text styles (font shorthand: weight size/line-height family) */
   --font-family: 'Pretendard', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -21,53 +23,76 @@
   --type-text: 600 14px/16px var(--font-family);
   --type-title: 600 18px/20px var(--font-family);
 
-  /* LAYER 1 — RAW PALETTE (do NOT use directly in components) */
-  --neutral-dark-1000: #0F1215;
-  --neutral-dark-900:  #22262B;
-  --neutral-dark-800:  #34373C;
+  /* Dark theme (Layer 1) */
+  --mono-100: #0F1215;
+  --mono-90:  #22262B;
+  --mono-80:  #34373C;
+  --mono-70:  rgba(255,255,255,.40);
+  --mono-60:  rgba(255,255,255,.20);
+  --mono-50:  rgba(255,255,255,.10);
+  --mono-40:  rgba(255,255,255,.08);
+  --mono-30:  rgba(255,255,255,.06);
+  --mono-20:  rgba(255,255,255,.04);
+  --mono-10:  #ffffff;
+  --mono-overlay: rgba(0,0,0,.12);
 
-  --white-100: #ffffff;
-  --white-40:  rgba(255,255,255,.40);
-  --white-20:  rgba(255,255,255,.20);
-  --white-10:  rgba(255,255,255,.10);
-  --white-08:  rgba(255,255,255,.08);
-  --white-06:  rgba(255,255,255,.06);
-  --white-04:  rgba(255,255,255,.04);
-
-  --black-12: rgba(0,0,0,.12);
-
+  /* Accent raw tokens — dark theme */
   --green-600: #03ab00;
-  --green-20:  rgba(3,171,0,.20);
-
+  --green-20: rgba(3,171,0,.20);
   --red-500: #E8306E;
   --red-900: #570F27;
-  --red-20:  rgba(232,48,110,.20);
+  --red-20: rgba(232,48,110,.20);
+}
 
-  /* LAYER 2 — SYSTEM TOKENS (use these in components) */
-  --surface-0: var(--neutral-dark-1000);
-  --surface-1: var(--neutral-dark-900);
-  --surface-2: var(--neutral-dark-800);
+/* Light theme (Layer 1 overrides) */
+[data-theme="light"] {
+  --mono-100: #E9E8E7;
+  --mono-90:  #ffffff;
+  --mono-80:  #E9E8E7;
+  --mono-70:  rgba(0,0,0,.40);
+  --mono-60:  rgba(0,0,0,.20);
+  --mono-50:  rgba(0,0,0,.10);
+  --mono-40:  rgba(0,0,0,.08);
+  --mono-30:  rgba(0,0,0,.06);
+  --mono-20:  rgba(0,0,0,.04);
+  --mono-10:  #0F1215;
+  --mono-overlay: rgba(0,0,0,.03);
 
-  --fill-1: var(--white-04);
-  --fill-2: var(--white-06);
-  --fill-3: var(--white-08);
-  --fill-4: var(--white-10);
-  --fill-5: var(--white-20);
+  /* Accent raw tokens — light theme */
+  --green-600: #039b00;
+  --green-20: rgba(2,138,0,.15);
+  --red-500: #c9285c;
+  --red-900: #fbc5d7;
+  --red-20: rgba(201,40,92,.15);
+}
 
-  --text-1: var(--white-100);
-  --text-2: var(--white-40);
-  --text-3: var(--white-20);
-  --text-inverted: var(--neutral-dark-1000);
+/* LAYER 2 — System tokens (use in components). Resolve from Layer 1. */
+:root {
+  --surface-0: var(--mono-100);
+  --surface-1: var(--mono-90);
+  --surface-2: var(--mono-80);
 
-  --stroke-1: var(--white-04);
-  --stroke-2: var(--white-06);
-  --stroke-3: var(--white-10);
+  --fill-1: var(--mono-20);
+  --fill-2: var(--mono-30);
+  --fill-3: var(--mono-40);
+  --fill-4: var(--mono-50);
+  --fill-5: var(--mono-60);
+  --fill-6: var(--mono-70);
+  --fill-inverted: var(--mono-10);
 
-  --overlay-hover: var(--black-12);
+  --text-1: var(--mono-10);
+  --text-2: var(--mono-70);
+  --text-3: var(--mono-60);
+  --text-inverted: var(--mono-100);
+
+  --stroke-1: var(--mono-20);
+  --stroke-2: var(--mono-30);
+  --stroke-3: var(--mono-50);
+
+  --overlay-hover: var(--mono-overlay);
 
   --accent: var(--green-600);
   --danger: var(--red-500);
-
   --accent-surface: var(--green-20);
   --danger-surface-strong: var(--red-900);
   --danger-surface: var(--red-20);
@@ -85,11 +110,6 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   corner-shape: smooth;
-}
-
-/* Placeholder for future light theme */
-[data-theme="light"] {
-  /* Colors and typography overrides for light theme will go here */
 }
 
 * {
@@ -129,4 +149,38 @@ body {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+/* Error boundary fallback (e.g. after navigation with map/draft) */
+.app-error-fallback {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: var(--text-1);
+  text-align: center;
+}
+.app-error-fallback__title {
+  font: var(--type-title);
+  margin: 0;
+}
+.app-error-fallback__hint {
+  font: var(--type-text);
+  margin: 0;
+  color: var(--text-2);
+}
+.app-error-fallback__reload {
+  font: var(--type-text);
+  padding: 10px 20px;
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.app-error-fallback__reload:hover {
+  opacity: 0.9;
 }

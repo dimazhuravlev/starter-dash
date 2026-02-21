@@ -10,7 +10,7 @@
   min-height: 0;
   overflow: hidden;
   border-radius: 12px;
-  background: #292929;
+  background: var(--surface-1);
   transition: border-radius 400ms ease-in-out;
 }
 

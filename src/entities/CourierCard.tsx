@@ -141,10 +141,9 @@ export function CourierCard({
       }}
     >
       <div className="card__row">
-        <img
-          src={courierTypeIcons[courier.type]}
-          alt=""
+        <span
           className="card__courier-icon"
+          style={{ ['--icon-src' as string]: `url("${courierTypeIcons[courier.type]}")` }}
           aria-hidden
         />
         <div className="card__title">{courier.name}</div>

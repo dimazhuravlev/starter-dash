@@ -9,7 +9,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -25,7 +25,7 @@
 }
 
 .card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .card:hover::before {
@@ -61,15 +61,22 @@
 .card--courier:hover,
 .card--delivery:hover {
   transform: translateY(-2px); /* !important ниже перебивает transform от animation forwards у карточек «Активные» */
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .card.card--delivery:hover {
   transform: translateY(-2px) !important;
 }
 
-.card--route:hover:has(.route-draft__order) {
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+/* Контент карточки (в т.ч. merger) выше затемняющего overlay при ховере */
+.card--route > *,
+.card--delivery > * {
+  position: relative;
+  z-index: 1;
+}
+
+.card--route:hover {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .card--route:not(.card--route-empty):hover:has(.route-draft__order) {
@@ -86,7 +93,7 @@
 
 .card--draggable:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
 .card--dragging {
@@ -133,8 +140,12 @@
   border: 1.5px dashed var(--stroke-3);
   background: var(--fill-1);
   box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
-  animation: route-draft-appear 300ms ease forwards;
   transition: box-shadow 300ms ease, border-color 200ms ease;
+}
+
+/* Анимация появления только при первом появлении в колонке (класс добавляется из компонента и снимается после animationend) */
+.card--route-empty.card--route-appearing {
+  animation: route-draft-appear 300ms ease forwards;
 }
 
 .card--route-exiting {
@@ -149,6 +160,9 @@
 }
 
 .card--delivery-exiting {
+  /* Начальное состояние видимо, иначе при одновременном .card--delivery-appearing карточка уже невидима и анимация выхода не видна */
+  opacity: 1;
+  transform: translateY(0);
   animation: delivery-card-exit 300ms ease forwards;
   pointer-events: none;
 }
@@ -313,9 +327,10 @@
   width: 12px;
   height: 12px;
   flex-shrink: 0;
-  object-fit: contain;
-  opacity: 0.4;
-  filter: brightness(0) invert(1);
+  display: inline-block;
+  background-color: var(--fill-6);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 .card--courier .card__row,
 .card--delivery .card__row {

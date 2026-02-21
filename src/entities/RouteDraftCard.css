@@ -66,6 +66,15 @@
   flex-shrink: 0;
 }
 
+.route-draft__remove--small .route-draft__icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
+}
+
 .route-draft__orders .route-draft__placeholder--empty {
   margin-top: 6px;
   min-height: 36px;
@@ -80,19 +89,23 @@
 }
 
 .route-draft__placeholder--empty .route-draft__plus-icon {
-  opacity: 0.4;
-  transition: opacity 300ms ease;
+  opacity: 1;
+  transition: background-color 300ms ease;
 }
 
 .route-draft__placeholder--empty:hover .route-draft__plus-icon {
-  opacity: 0.7;
+  opacity: 1;
+  background-color: var(--fill-inverted);
 }
 
 .route-draft__plus-icon {
   width: 16px;
   height: 16px;
-  display: block;
+  display: inline-block;
   flex-shrink: 0;
+  background-color: var(--fill-6);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 
 .route-draft__placeholder-text {
@@ -108,7 +121,8 @@
 
 /* При перетаскивании курьера на карточку маршрута — тот же эффект, что при ховере */
 .card--drag-over-courier .route-draft__header .route-draft__placeholder--empty .route-draft__plus-icon {
-  opacity: 0.7;
+  opacity: 1;
+  background-color: var(--fill-inverted);
 }
 .card--drag-over-courier .route-draft__header .route-draft__placeholder--empty .route-draft__placeholder-text {
   color: var(--text-1);
@@ -116,7 +130,8 @@
 
 /* При перетаскивании заказа на карточку маршрута — тот же эффект, что при ховере */
 .card--drag-over-order .route-draft__orders .route-draft__placeholder--empty .route-draft__plus-icon {
-  opacity: 0.7;
+  opacity: 1;
+  background-color: var(--fill-inverted);
 }
 .card--drag-over-order .route-draft__orders .route-draft__placeholder--empty .route-draft__placeholder-text {
   color: var(--text-1);
@@ -161,6 +176,11 @@
   margin-top: 0;
 }
 
+/* Цвет линии merger — как у блоков заказов (surface-1) */
+.card--route {
+  --merger-gray: var(--surface-1);
+}
+
 .route-draft__merger {
   margin-left: 16px;
   display: flex;
@@ -195,7 +215,7 @@
   gap: 8px;
   padding: 8px;
   border-radius: 8px;
-  background: var(--surface-2);
+  background: var(--surface-1);
 }
 
 .route-draft__order::after {
@@ -265,10 +285,6 @@
   border-radius: 0;
 }
 
-.route-draft__remove--small img {
-  opacity: 0.4;
-}
-
 .route-draft__remove--small:focus {
   outline: none;
 }
@@ -323,10 +339,13 @@
   opacity: 1;
 }
 
-.route-draft__action--icon img {
+.route-draft__action--icon .route-draft__action-icon {
   width: 16px;
   height: 16px;
   display: block;
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 
 .route-draft__action--add {

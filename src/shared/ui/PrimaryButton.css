@@ -1,11 +1,11 @@
-/* Основная кнопка: светлый градиент, для акцентного действия */
+/* Основная кнопка: инвертированный фон (белый в тёмной теме, тёмный в светлой), для акцентного действия */
 .primary-btn {
   display: inline-flex;
   justify-content: center;
   align-items: center;
   border-radius: 40px;
-  background: linear-gradient(0deg, #FAFAFA 0%, #FFF 100%);
-  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  border: none;
+  background: var(--fill-inverted);
   font-style: normal;
   transition: opacity 200ms ease;
   cursor: pointer;
@@ -21,6 +21,21 @@
   padding: 0 12px;
   color: var(--text-inverted);
   font: var(--type-subtitle);
+}
+
+.primary-btn--default.primary-btn--with-icon {
+  padding-left: 10px;
+  padding-right: 12px;
+  gap: 4px;
+}
+
+.primary-btn__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: var(--text-inverted);
+  mask: var(--icon-src) center/contain no-repeat;
+  -webkit-mask: var(--icon-src) center/contain no-repeat;
 }
 
 .primary-btn--mobile {

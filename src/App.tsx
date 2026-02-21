@@ -4,7 +4,6 @@ import { DashboardScreen } from './screens/DashboardScreen'
 import { DebugPanelScreen } from './screens/DebugPanelScreen'
 import { AppHeader } from './shared/ui/AppHeader'
 import { AppSubheader } from './shared/ui/AppSubheader'
-
 const tabItems = ['Заказы', 'Смены', 'Курьеры', 'Статистика']
 
 const restaurantTabs = [
@@ -47,6 +46,11 @@ function App() {
   const [screen, setScreen] = useState<'dashboard' | 'debug'>('dashboard')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeRestaurantTab, setActiveRestaurantTab] = useState(0)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof localStorage === 'undefined') return 'dark'
+    const saved = localStorage.getItem('theme')
+    return saved === 'light' ? 'light' : 'dark'
+  })
 
   // При перезагрузке страницы создаём пустой шаблон маршрута, если нет ни одного черновика
   useEffect(() => {
@@ -67,6 +71,11 @@ function App() {
     return () => window.clearInterval(interval)
   }, [isRunning, speed, tick])
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    if (typeof localStorage !== 'undefined') localStorage.setItem('theme', theme)
+  }, [theme])
+
   // Сброс классов body при переключении экрана/таба (если остались is-dragging/is-resizing после днд или ресайза)
   useEffect(() => {
     document.body.classList.remove('is-dragging', 'is-resizing')
@@ -83,6 +92,8 @@ function App() {
         onTabClick={() => setIsMenuOpen(false)}
         isDebug={isDebug}
         onDebugClick={() => setScreen(isDebug ? 'dashboard' : 'debug')}
+        theme={theme}
+        onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
       />
 
       {screen === 'dashboard' && (
@@ -94,10 +105,14 @@ function App() {
       )}
 
       <main className="app-content">
-        {screen === 'dashboard' ? (
-          activeRestaurantTab === 0 ? (
+        {/* Не размонтируем экраны — переключаем видимость, чтобы карта и дашборд не вызывали cleanup при переходе в дебаг/табы */}
+        <div
+          className={`app-content__pane${screen === 'dashboard' && activeRestaurantTab === 0 ? '' : ' app-content__pane--hidden'}`}
+          aria-hidden={screen !== 'dashboard' || activeRestaurantTab !== 0}
+        >
           <DashboardScreen
             key="dashboard"
+            theme={theme}
             orders={orders}
             couriers={couriers}
             routes={routes}
@@ -114,12 +129,19 @@ function App() {
             orderStageMin={orderStageMin}
             routeStageMin={routeStageMin}
           />
-          ) : (
-            <div key={`tab-${activeRestaurantTab}`} className="app-content__empty">
-              Заказы {restaurantTabs[activeRestaurantTab].label}, {restaurantTabs[activeRestaurantTab].count}
-            </div>
-          )
-        ) : (
+        </div>
+        <div
+          className={`app-content__pane${screen === 'dashboard' && activeRestaurantTab !== 0 ? '' : ' app-content__pane--hidden'}`}
+          aria-hidden={screen !== 'dashboard' || activeRestaurantTab === 0}
+        >
+          <div key={`tab-${activeRestaurantTab}`} className="app-content__empty">
+            Заказы {restaurantTabs[activeRestaurantTab].label}, {restaurantTabs[activeRestaurantTab].count}
+          </div>
+        </div>
+        <div
+          className={`app-content__pane${screen === 'debug' ? '' : ' app-content__pane--hidden'}`}
+          aria-hidden={screen !== 'debug'}
+        >
           <DebugPanelScreen
             key="debug"
             now={now}
@@ -138,7 +160,7 @@ function App() {
             setOrderSlaOption={setOrderSlaOption}
             setRouteStageMin={setRouteStageMin}
           />
-        )}
+        </div>
       </main>
     </div>
   )

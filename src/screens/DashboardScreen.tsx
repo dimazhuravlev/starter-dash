@@ -11,6 +11,7 @@ import { useDashboardResize } from './useDashboardResize'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 
 type DashboardScreenProps = {
+  theme: 'dark' | 'light'
   orders: Record<string, Order>
   couriers: Record<string, Courier>
   routes: Record<string, Route>
@@ -29,6 +30,7 @@ type DashboardScreenProps = {
 }
 
 export function DashboardScreen({
+  theme,
   orders,
   couriers,
   routes,
@@ -85,7 +87,6 @@ export function DashboardScreen({
     mapFocusCoords,
     mapFocusBounds,
     focusedRouteId,
-    focusedRoutePathCoords,
     highlightedOrderIdFromMap,
     highlightedCourierIdFromMap,
     mapViewMode,
@@ -110,6 +111,12 @@ export function DashboardScreen({
   const [nextRevertedDraftId, setNextRevertedDraftId] = useState<string | null>(null)
   const prevClientRouteIdsRef = useRef<Set<string>>(new Set())
   const didInitClientRoutesRef = useRef(false)
+  const mountedRef = useRef(true)
+  useLayoutEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const handleSendRouteClick = useCallback((routeId: string) => {
     setPendingSendRouteId(routeId)
@@ -122,7 +129,7 @@ export function DashboardScreen({
       setPendingSendRouteId(null)
       setRecentlySentRouteIds((prev) => [...prev, routeId])
       window.setTimeout(() => {
-        setRecentlySentRouteIds((prev) => prev.filter((id) => id !== routeId))
+        if (mountedRef.current) setRecentlySentRouteIds((prev) => prev.filter((id) => id !== routeId))
       }, 350)
     },
     [sendRoute],
@@ -139,12 +146,13 @@ export function DashboardScreen({
         setPendingRevertRouteId(null)
         setRecentlyRevertedToDraftRouteIds((prev) => [...prev, routeId])
       })
-      requestAnimationFrame(() => {
-        revertRouteToDraft(routeId)
-      })
+      /* Карточка уже вызвала onRevertAfterExit после 350ms, сразу переносим маршрут в черновики */
+      revertRouteToDraft(routeId)
       window.setTimeout(() => {
-        setRecentlyRevertedToDraftRouteIds((prev) => prev.filter((id) => id !== routeId))
-        setNextRevertedDraftId(null)
+        if (mountedRef.current) {
+          setRecentlyRevertedToDraftRouteIds((prev) => prev.filter((id) => id !== routeId))
+          setNextRevertedDraftId(null)
+        }
       }, 350)
     },
     [revertRouteToDraft],
@@ -155,7 +163,7 @@ export function DashboardScreen({
   const ordersCooking = unassignedOrders.filter((order) => order.status === 'cooking')
   const ordersReady = unassignedOrders.filter((order) => order.status === 'ready')
 
-  const { orderMarkers, courierMarkers, routePathCoords: routePathCoordsFromData, orderIdsInRoute } = useDashboardMapData({
+  const { orderMarkers, courierMarkers, routePathCoords, orderIdsInRoute } = useDashboardMapData({
     orders,
     routes,
     couriers,
@@ -166,7 +174,6 @@ export function DashboardScreen({
     routeStageMin,
     restaurantCoords: RESTAURANT_COORDS,
   })
-  const routePathCoords = focusedRoutePathCoords ?? routePathCoordsFromData
 
   useLayoutEffect(() => {
     const currentIds = new Set(clientRoutes.map((r) => r.id))
@@ -197,6 +204,7 @@ export function DashboardScreen({
       resizerJustInteractedRef={resizerJustInteractedRef}
     >
       <DashboardMobileMap
+        theme={theme}
         isOpen={isMobileMapOpen}
         onToggle={() => setIsMobileMapOpen((prev) => !prev)}
         orders={orders}
@@ -259,6 +267,7 @@ export function DashboardScreen({
       />
 
       <DashboardMapColumn
+        theme={theme}
         rightColumnRef={rightColumnRef}
         resizerRef={resizerRef}
         mapViewMode={mapViewMode}

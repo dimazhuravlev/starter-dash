@@ -36,7 +36,9 @@ export function MapWidget({
   onMapViewModeChange,
   mapColumnWidthWhenVisible,
   hideViewSelector,
+  theme,
 }: {
+  theme?: 'dark' | 'light'
   orders: Record<string, Order>
   orderMarkers: OrderMarkerItem[]
   courierMarkers?: CourierMarkerItem[]
@@ -78,6 +80,7 @@ export function MapWidget({
         }
       >
         <MapboxMap
+          theme={theme}
           markers={orderMarkers}
           courierMarkers={courierMarkers}
           restaurantCoords={restaurantCoords ?? null}

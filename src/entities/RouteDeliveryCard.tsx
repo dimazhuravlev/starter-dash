@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { type Courier, type Order, type Route, type RouteStepKind } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import editIcon from '../assets/Edit.svg'
@@ -52,15 +52,29 @@ export function RouteDeliveryCard({
   onFocusOnMap?: (routeId: string) => void
 }) {
   const [isExiting, setIsExiting] = useState(false)
+  const [hasPlayedAppearAnimation, setHasPlayedAppearAnimation] = useState(false)
+  const revertAfterExitCalledRef = useRef(false)
 
   useEffect(() => {
-    if (pendingRevertRouteId === route.id) {
-      setIsExiting(true)
-    }
-  }, [pendingRevertRouteId, route.id])
+    if (pendingRevertRouteId !== route.id) return
+    setIsExiting(true)
+    revertAfterExitCalledRef.current = false
+    const t = window.setTimeout(() => {
+      if (revertAfterExitCalledRef.current) return
+      revertAfterExitCalledRef.current = true
+      onRevertAfterExit?.(route.id)
+    }, 350)
+    return () => window.clearTimeout(t)
+  }, [pendingRevertRouteId, route.id, onRevertAfterExit])
 
-  const handleRevertAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
+  const handleAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
+    if (event.animationName === 'delivery-card-enter') {
+      setHasPlayedAppearAnimation(true)
+      return
+    }
     if (event.animationName === 'delivery-card-exit' && isExiting) {
+      if (revertAfterExitCalledRef.current) return
+      revertAfterExitCalledRef.current = true
       onRevertAfterExit?.(route.id)
     }
   }
@@ -96,12 +110,12 @@ export function RouteDeliveryCard({
 
   return (
     <div
-      className={`card card--delivery${onFocusOnMap ? ' card--focus-on-map' : ''}${isJustAppeared ? ' card--delivery-appearing' : ''}${isExiting ? ' card--delivery-exiting' : ''}`}
+      className={`card card--delivery${onFocusOnMap ? ' card--focus-on-map' : ''}${isJustAppeared && !hasPlayedAppearAnimation ? ' card--delivery-appearing' : ''}${isExiting ? ' card--delivery-exiting' : ''}`}
       role={onFocusOnMap ? 'button' : undefined}
       tabIndex={onFocusOnMap ? 0 : undefined}
       onClick={onFocusOnMap ? handleCardClick : undefined}
       onKeyDown={onFocusOnMap ? handleCardKeyDown : undefined}
-      onAnimationEnd={handleRevertAnimationEnd}
+      onAnimationEnd={handleAnimationEnd}
     >
       {showEditButton ? (
         <button
@@ -113,15 +127,18 @@ export function RouteDeliveryCard({
           }}
           aria-label="Редактировать маршрут"
         >
-          <img src={editIcon} alt="" width={12} height={12} aria-hidden />
+          <span
+            className="delivery__edit-icon"
+            style={{ ['--icon-src' as string]: `url("${editIcon}")` }}
+            aria-hidden
+          />
         </button>
       ) : null}
       <div className="card__row">
         {courier ? (
-          <img
-            src={courierTypeIcons[courier.type]}
-            alt=""
+          <span
             className="card__courier-icon"
+            style={{ ['--icon-src' as string]: `url("${courierTypeIcons[courier.type]}")` }}
             aria-hidden
           />
         ) : null}
@@ -157,10 +174,9 @@ export function RouteDeliveryCard({
                 : { isBehindSchedule: false }
             const belowRed = !belowDelivered && (nextSla.isOverdue || nextRisk.isBehindSchedule)
             const gradientId = `delivery-merger-${route.id}-${index}`
-            const gray = getColorToken('--surface-2')
             const red = getColorToken('--danger-surface-strong')
-            const topColor = aboveDelivered ? gray : aboveRed ? red : gray
-            const bottomColor = belowDelivered ? gray : belowRed ? red : gray
+            const topColor = aboveDelivered ? 'var(--merger-gray)' : aboveRed ? red : 'var(--merger-gray)'
+            const bottomColor = belowDelivered ? 'var(--merger-gray)' : belowRed ? red : 'var(--merger-gray)'
             mergerNode = (
               <div className="delivery__merger" aria-hidden>
                 <svg width={14} height={6} viewBox="0 0 14 6" fill="none" xmlns="http://www.w3.org/2000/svg">
