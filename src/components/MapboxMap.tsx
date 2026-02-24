@@ -3,6 +3,7 @@ import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDirectionsRoute, emptyRouteGeoJSON, type RoutePathCoord } from '../hooks/useDirectionsRoute'
 import { getColorToken } from '../theme'
+import { Tooltip } from '../shared/ui/Tooltip'
 import restaurantIconUrl from '../assets/Restourant.svg'
 import halfMapIconUrl from '../assets/Half map.svg'
 import noMapIconUrl from '../assets/No map.svg'
@@ -130,7 +131,7 @@ function createMarkerElement(
 ): HTMLDivElement {
   const wrap = document.createElement('div')
   wrap.className = 'mapbox-order-marker' + (marker.isDimmed ? ' mapbox-order-marker--dimmed' : '')
-  wrap.setAttribute('aria-hidden', 'true')
+  wrap.style.opacity = marker.isDimmed ? '0.3' : ''
   wrap.setAttribute('data-order-id', marker.id)
   if (onMarkerClick) wrap.style.cursor = 'pointer'
   const pill = document.createElement('span')
@@ -421,7 +422,8 @@ export function MapboxMap({
         })
       }
       const accent = getColorToken('--accent') || '#03ab00'
-      const accentOnAccent = getColorToken('--text-1') || '#ffffff'
+      /** Светлый акцент в середине линии (одинаково читаемо в светлой и тёмной теме) */
+      const lineHighlight = '#B8FFB7'
       if (!map.getLayer('route-line-glow')) {
         map.addLayer({
           id: 'route-line-glow',
@@ -453,7 +455,7 @@ export function MapboxMap({
               0.35,
               accent,
               0.5,
-              accentOnAccent,
+              lineHighlight,
               0.65,
               accent,
               1,
@@ -473,7 +475,7 @@ export function MapboxMap({
 
     return () => {
       cancelled = true
-      // Не вызываем setMapReady(false) при смене темы — иначе лишний рендер ломает переход (пустой экран)
+      setMapReady(false)
       onClearFocusRef.current = () => {}
       onOrderAddToRouteRef.current = undefined
       onMapBackgroundClickRef.current = () => {}
@@ -615,6 +617,11 @@ export function MapboxMap({
     }
   }, [mapReady])
 
+  /** Синхронизируем класс --dimmed на уже отрисованных маркерах (при смене выделенного маршрута) */
+  const dimmedStateKey = useMemo(
+    () => markers.map((m) => `${m.id}:${m.isDimmed ? 1 : 0}`).join(','),
+    [markers],
+  )
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
@@ -656,13 +663,17 @@ export function MapboxMap({
       onMarkerClick?.(m)
     }
     byCoords.forEach((group) => {
-      const marker = group[0]
+      const first = group[0]
+      const mergedMarker: MapMarkerItem = {
+        ...first,
+        isDimmed: group.some((m) => m.isDimmed),
+      }
       const el = createMarkerElement(
-        marker,
+        mergedMarker,
         onOrderAddToRoute || onMarkerClick ? handleMarkerClick : undefined,
       )
       const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
-        .setLngLat([marker.lng, marker.lat])
+        .setLngLat([first.lng, first.lat])
         .setOffset([0, MARKER_OFFSET_FULL])
         .addTo(map)
       markersRef.current.push(mapMarker)
@@ -672,22 +683,31 @@ export function MapboxMap({
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
     }
-  }, [markers, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick])
+  }, [markers, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick, dimmedStateKey])
 
-  /** Синхронизируем класс --dimmed на уже отрисованных маркерах (при смене выделенного маршрута) */
-  const dimmedStateKey = useMemo(
-    () => markers.map((m) => `${m.id}:${m.isDimmed ? 1 : 0}`).join(','),
-    [markers],
-  )
+  /** Синхронизируем класс --dimmed и opacity на уже отрисованных маркерах (при смене выделенного маршрута) */
   useEffect(() => {
     if (!mapReady || !markers.length) return
-    const idToDimmed = new Map(markers.map((m) => [m.id, !!m.isDimmed]))
+    const key = (lng: number, lat: number) => `${lng.toFixed(6)},${lat.toFixed(6)}`
+    const byCoords = new Map<string, MapMarkerItem[]>()
+    for (const m of markers) {
+      const k = key(m.lng, m.lat)
+      const list = byCoords.get(k) ?? []
+      list.push(m)
+      byCoords.set(k, list)
+    }
+    const idToDimmed = new Map<string, boolean>()
+    byCoords.forEach((group) => {
+      const dimmed = group.some((m) => !!m.isDimmed)
+      group.forEach((m) => idToDimmed.set(m.id, dimmed))
+    })
     markersRef.current.forEach((mapMarker) => {
       const el = mapMarker.getElement()
       const orderId = el?.getAttribute('data-order-id')
       if (orderId == null) return
       const dimmed = idToDimmed.get(orderId) ?? false
       el?.classList.toggle('mapbox-order-marker--dimmed', dimmed)
+      if (el) (el as HTMLElement).style.opacity = dimmed ? '0.3' : ''
     })
   }, [mapReady, markers, dimmedStateKey])
 
@@ -711,19 +731,29 @@ export function MapboxMap({
     }
   }, [courierMarkers, mapReady, onCourierMarkerClick])
 
+  const restaurantLat = restaurantCoords?.lat
+  const restaurantLng = restaurantCoords?.lng
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
     restaurantMarkerRef.current?.remove()
     restaurantMarkerRef.current = null
-    if (restaurantCoords) {
+    if (restaurantLat != null && restaurantLng != null) {
       const el = createRestaurantMarkerElement()
       const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat([restaurantCoords.lng, restaurantCoords.lat])
+        .setLngLat([restaurantLng, restaurantLat])
         .addTo(map)
       restaurantMarkerRef.current = marker
+      const onStyleLoad = () => {
+        if (restaurantMarkerRef.current && restaurantLat != null && restaurantLng != null) {
+          restaurantMarkerRef.current.addTo(map)
+          updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
+        }
+      }
+      map.on('style.load', onStyleLoad)
       updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
       return () => {
+        map.off('style.load', onStyleLoad)
         restaurantMarkerRef.current?.remove()
         restaurantMarkerRef.current = null
       }
@@ -732,7 +762,7 @@ export function MapboxMap({
       restaurantMarkerRef.current?.remove()
       restaurantMarkerRef.current = null
     }
-  }, [mapReady, restaurantCoords])
+  }, [mapReady, restaurantLat, restaurantLng])
 
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
@@ -938,7 +968,7 @@ export function MapboxMap({
     })
   }
 
-  return (
+  const mapWrapper = (
     <div
       className={`mapbox-map-wrapper${mapViewMode === 'none' ? ' mapbox-map-wrapper--collapsed' : ''}`}
       onClick={handleWrapperClick}
@@ -969,43 +999,50 @@ export function MapboxMap({
       ) : null}
       <div className="mapbox-map-controls">
         {restaurantCoords ? (
-          <button
-            type="button"
-            className="mapbox-map-focus-restaurant-btn"
-            onClick={handleFocusRestaurant}
-            title="Центрировать на ресторане"
-            aria-label="Центрировать на ресторане"
-          >
-            <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${restaurantIconUrl}")` }} aria-hidden />
-          </button>
+          <Tooltip title="К ресторану">
+            <button
+              type="button"
+              className="mapbox-map-focus-restaurant-btn"
+              onClick={handleFocusRestaurant}
+              aria-label="К ресторану"
+            >
+              <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${restaurantIconUrl}")` }} aria-hidden />
+            </button>
+          </Tooltip>
         ) : null}
         {!hideViewSelector ? (
           <div className="mapbox-map-view-selector" role="group" aria-label="Режим карты">
             {MAP_VIEW_MODES.map(({ value, icon, title }) => (
-              <button
-                key={value}
-                type="button"
-                className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
-                onClick={(e) => {
-                  if (value === 'none') {
-                    const wrapper = (e.target as Element).closest('.mapbox-map-wrapper')
-                    if (wrapper) {
-                      const rect = wrapper.getBoundingClientRect()
-                      if (e.clientX < rect.left + 40) return
+              <Tooltip key={value} title={title}>
+                <button
+                  type="button"
+                  className={`mapbox-map-view-selector__btn ${mapViewMode === value ? 'mapbox-map-view-selector__btn--active' : ''}`}
+                  onClick={(e) => {
+                    if (value === 'none') {
+                      const wrapper = (e.target as Element).closest('.mapbox-map-wrapper')
+                      if (wrapper) {
+                        const rect = wrapper.getBoundingClientRect()
+                        if (e.clientX < rect.left + 40) return
+                      }
                     }
-                  }
-                  setMapViewMode(value)
-                }}
-                title={title}
-                aria-pressed={mapViewMode === value}
-                aria-label={title}
-              >
-                <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${icon}")` }} aria-hidden />
-              </button>
+                    setMapViewMode(value)
+                  }}
+                  aria-pressed={mapViewMode === value}
+                  aria-label={title}
+                >
+                  <span className="mapbox-map-icon" style={{ ['--icon-src' as string]: `url("${icon}")` }} aria-hidden />
+                </button>
+              </Tooltip>
             ))}
           </div>
         ) : null}
       </div>
     </div>
+  )
+
+  return (
+    <Tooltip title={mapViewMode === 'none' ? 'Показать карту' : ''} fill>
+      {mapWrapper}
+    </Tooltip>
   )
 }

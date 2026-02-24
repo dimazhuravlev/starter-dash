@@ -1,6 +1,7 @@
 import burgerMenuIcon from '../../assets/burger-menu.svg'
 import settingsIcon from '../../assets/Settings.svg'
 import exitIcon from '../../assets/Exit.svg'
+import { Tooltip } from './Tooltip'
 
 type AppHeaderProps = {
   tabItems: string[]
@@ -47,9 +48,11 @@ export function AppHeader({
         ))}
       </div>
       <div className="app-header__right">
-        <button type="button" className="route-draft__action route-draft__action--icon" aria-label="Настройки">
-          <span className="app-header__icon" style={{ ['--icon-src' as string]: `url(${settingsIcon})` }} aria-hidden />
-        </button>
+        <Tooltip title="Настройки">
+          <button type="button" className="route-draft__action route-draft__action--icon" aria-label="Настройки">
+            <span className="app-header__icon" style={{ ['--icon-src' as string]: `url(${settingsIcon})` }} aria-hidden />
+          </button>
+        </Tooltip>
         <button
           type="button"
           className={`route-draft__action app-header__user-btn${theme === 'light' ? ' app-header__user-btn--active' : ''}`}
@@ -66,10 +69,12 @@ export function AppHeader({
         >
           Дебаг
         </button>
-        <button type="button" className="route-draft__action app-header__user-btn" aria-label="Выход">
-          <span className="app-header__user-icon" style={{ ['--icon-src' as string]: `url(${exitIcon})` }} aria-hidden />
-          <span className="app-header__user-name">Попова И.</span>
-        </button>
+        <Tooltip title="Выход">
+          <button type="button" className="route-draft__action app-header__user-btn" aria-label="Выход">
+            <span className="app-header__user-icon" style={{ ['--icon-src' as string]: `url(${exitIcon})` }} aria-hidden />
+            <span className="app-header__user-name">Попова И.</span>
+          </button>
+        </Tooltip>
       </div>
     </header>
   )

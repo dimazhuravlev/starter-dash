@@ -18,6 +18,7 @@ import {
 } from '../shared/dashboardDnd'
 import { getColorToken } from '../theme'
 import { PrimaryButton } from '../shared/ui/PrimaryButton'
+import { Tooltip } from '../shared/ui/Tooltip'
 import { getOrderRiskStatus, getOrderSlaStatus } from './OrdersSection'
 
 type RouteDraftCardProps = {
@@ -218,14 +219,16 @@ export function RouteDraftCard({
           <div className={`route-draft__placeholder route-draft__placeholder--block route-draft__placeholder--empty`}>
             {route.courierId && selectedCourier ? (
               <>
-                <button
-                  type="button"
-                  className="route-draft__remove route-draft__remove--small"
-                  onClick={() => onDetachCourier(route.id)}
-                  aria-label="Удалить курьера"
-                >
-                  <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
-                </button>
+                <Tooltip title="Удалить курьера">
+                  <button
+                    type="button"
+                    className="route-draft__remove route-draft__remove--small"
+                    onClick={() => onDetachCourier(route.id)}
+                    aria-label="Удалить курьера"
+                  >
+                    <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
+                  </button>
+                </Tooltip>
                 <span className="route-draft__courier-name">{selectedCourier.name}</span>
               </>
             ) : (
@@ -309,14 +312,16 @@ export function RouteDraftCard({
                 }}
               >
                 <div className="route-draft__order-info">
-                  <button
-                    type="button"
-                    className="route-draft__remove route-draft__remove--small"
-                    onClick={() => onDetachOrder(route.id, orderId)}
-                    aria-label="Удалить заказ"
-                  >
-                    <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
-                  </button>
+                  <Tooltip title="Удалить заказ">
+                    <button
+                      type="button"
+                      className="route-draft__remove route-draft__remove--small"
+                      onClick={() => onDetachOrder(route.id, orderId)}
+                      aria-label="Удалить заказ"
+                    >
+                      <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
+                    </button>
+                  </Tooltip>
                   <span className="route-draft__order-title">
                     {order ? order.address : orderId}
                   </span>
@@ -399,14 +404,16 @@ export function RouteDraftCard({
         >
           Назначить
         </PrimaryButton>
-        <button
-          type="button"
-          className="route-draft__action route-draft__action--icon"
-          onClick={handleDeleteClick}
-          aria-label="Удалить маршрут"
-        >
-          <span className="route-draft__action-icon" style={{ ['--icon-src' as string]: `url(${deleteIcon})` }} aria-hidden />
-        </button>
+        <Tooltip title="Удалить маршрут">
+          <button
+            type="button"
+            className="route-draft__action route-draft__action--icon"
+            onClick={handleDeleteClick}
+            aria-label="Удалить маршрут"
+          >
+            <span className="route-draft__action-icon" style={{ ['--icon-src' as string]: `url(${deleteIcon})` }} aria-hidden />
+          </button>
+        </Tooltip>
       </div>
     </div>
   )

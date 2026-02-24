@@ -1,6 +1,7 @@
 import { type Courier, type Order, type Route } from '../model/types'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 import plusIcon from '../assets/Plus.svg'
+import { Tooltip } from '../shared/ui/Tooltip'
 import { RouteDeliveryCard } from './RouteDeliveryCard'
 import { RouteDraftCard } from './RouteDraftCard'
 
@@ -79,11 +80,13 @@ export function RoutesColumn({
           <span>Маршруты</span>
           {assignedRoutes.length > 0 && <span className="column__title-count">{assignedRoutes.length}</span>}
         </span>
-        <span
-          className="column__title-icon"
-          style={{ ['--icon-src' as string]: `url(${plusIcon})` }}
-          aria-hidden
-        />
+        <Tooltip title="Новый маршрут">
+          <span
+            className="column__title-icon"
+            style={{ ['--icon-src' as string]: `url(${plusIcon})` }}
+            aria-hidden
+          />
+        </Tooltip>
       </button>
       {(draftRoutes.length > 0 || draftSectionExiting) ? (
         <div

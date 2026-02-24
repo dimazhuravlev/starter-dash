@@ -1,5 +1,6 @@
 @import './AppLayout.css';
 @import './shared/ui/utilities.css';
+@import './shared/ui/Tooltip.css';
 @import './shared/ui/AppHeader.css';
 @import './shared/ui/AppSubheader.css';
 @import './shared/ui/Card.css';

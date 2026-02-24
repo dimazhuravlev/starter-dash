@@ -3,12 +3,19 @@
   --merger-gray: var(--surface-2);
 }
 
-.delivery__edit-btn {
+.delivery__edit-wrap {
   position: absolute;
   top: 11px;
   right: 11px;
   z-index: 2;
+  pointer-events: none;
+}
+
+.delivery__edit-wrap .tooltip-wrapper {
   pointer-events: auto;
+}
+
+.delivery__edit-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -45,14 +45,6 @@ export function useDashboardMapData({
     return ids
   }, [routes])
 
-  const orderIdsInAssignedOrActiveRoute = useMemo(() => {
-    const ids: string[] = []
-    Object.values(routes).forEach((r) => {
-      if (r.status === 'sent') r.orderIds.forEach((id) => ids.push(id))
-    })
-    return ids
-  }, [routes])
-
   const routePathCoords = useMemo((): { lng: number; lat: number }[] | null => {
     if (!focusedRouteId) return null
     const route = routes[focusedRouteId]
@@ -85,8 +77,9 @@ export function useDashboardMapData({
           const slaStatus = getOrderSlaStatus(o, now)
           const idx = routeOrderIds.indexOf(o.id)
           const routePosition = idx >= 0 ? idx + 1 : undefined
-          const inAssignedOrActive = orderIdsInAssignedOrActiveRoute.includes(o.id)
           const inFocusedRoute = routeOrderIds.includes(o.id)
+          /** Когда маршрут активен (видна линия), все маркеры не из этого маршрута — затемнённые */
+          const isDimmed = !!focusedRouteId && !inFocusedRoute
           return {
             id: o.id,
             lng: o.coords.lng,
@@ -99,11 +92,11 @@ export function useDashboardMapData({
             slaLabel: slaStatus.label,
             routePosition,
             isDelivered,
-            isDimmed: inAssignedOrActive && !inFocusedRoute,
+            isDimmed,
           }
         })
     },
-    [orderList, now, orderStageMin, routeStageMin, focusedRouteId, routes, orders, orderIdsInAssignedOrActiveRoute],
+    [orderList, now, orderStageMin, routeStageMin, focusedRouteId, routes, orders],
   )
 
   const courierMarkers = useMemo<CourierMarkerItem[]>(

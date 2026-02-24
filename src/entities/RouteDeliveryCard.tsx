@@ -6,6 +6,7 @@ import walkingCourierIcon from '../assets/Walking courier.svg'
 import bikeCourierIcon from '../assets/Bike courier.svg'
 import carCourierIcon from '../assets/Car courier 2.svg'
 import { getColorToken } from '../theme'
+import { Tooltip } from '../shared/ui/Tooltip'
 import { getOrderRiskStatus, getOrderSlaStatus } from './OrdersSection'
 
 const routeStepLabel: Record<RouteStepKind, string> = {
@@ -118,21 +119,25 @@ export function RouteDeliveryCard({
       onAnimationEnd={handleAnimationEnd}
     >
       {showEditButton ? (
-        <button
-          type="button"
-          className="delivery__edit-btn"
-          onClick={(e) => {
-            e.stopPropagation()
-            onRevertToDraft(route.id)
-          }}
-          aria-label="Редактировать маршрут"
-        >
-          <span
-            className="delivery__edit-icon"
-            style={{ ['--icon-src' as string]: `url("${editIcon}")` }}
-            aria-hidden
-          />
-        </button>
+        <div className="delivery__edit-wrap">
+          <Tooltip title="Редактировать маршрут">
+            <button
+              type="button"
+              className="delivery__edit-btn"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRevertToDraft(route.id)
+              }}
+              aria-label="Редактировать маршрут"
+            >
+              <span
+                className="delivery__edit-icon"
+                style={{ ['--icon-src' as string]: `url("${editIcon}")` }}
+                aria-hidden
+              />
+            </button>
+          </Tooltip>
+        </div>
       ) : null}
       <div className="card__row">
         {courier ? (
