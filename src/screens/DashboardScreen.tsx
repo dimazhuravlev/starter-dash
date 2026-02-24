@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { CourierMarkerItem } from '../components/MapboxMap'
 import { flushSync } from 'react-dom'
 import { type Courier, type Order, type Route, RESTAURANT_COORDS } from '../model/types'
 import { DashboardLayout } from './DashboardLayout'
@@ -75,6 +76,7 @@ export function DashboardScreen({
     [sentRoutes],
   )
 
+  const courierMarkersRef = useRef<CourierMarkerItem[]>([])
   const mapFocus = useDashboardMapFocus({
     routes,
     orders,
@@ -82,6 +84,7 @@ export function DashboardScreen({
     createRouteDraft,
     attachOrderToRoute,
     resizerJustInteractedRef,
+    courierMarkersRef,
   })
   const {
     mapFocusCoords,
@@ -158,10 +161,19 @@ export function DashboardScreen({
     [revertRouteToDraft],
   )
 
-  const unassignedOrders = orderList.filter((order) => !order.routeId)
-  const ordersWaiting = unassignedOrders.filter((order) => order.status === 'waiting_cook')
-  const ordersCooking = unassignedOrders.filter((order) => order.status === 'cooking')
-  const ordersReady = unassignedOrders.filter((order) => order.status === 'ready')
+  const orderIdsInAnyRoute = useMemo(
+    () => new Set(routeList.flatMap((r) => r.orderIds)),
+    [routeList],
+  )
+  const ordersVisibleInColumn = orderList.filter(
+    (order) =>
+      !orderIdsInAnyRoute.has(order.id) ||
+      order.status === 'waiting_cook' ||
+      order.status === 'cooking',
+  )
+  const ordersWaiting = ordersVisibleInColumn.filter((order) => order.status === 'waiting_cook')
+  const ordersCooking = ordersVisibleInColumn.filter((order) => order.status === 'cooking')
+  const ordersReady = ordersVisibleInColumn.filter((order) => order.status === 'ready')
 
   const { orderMarkers, courierMarkers, routePathCoords, orderIdsInRoute } = useDashboardMapData({
     orders,
@@ -174,6 +186,8 @@ export function DashboardScreen({
     routeStageMin,
     restaurantCoords: RESTAURANT_COORDS,
   })
+
+  courierMarkersRef.current = courierMarkers
 
   useLayoutEffect(() => {
     const currentIds = new Set(clientRoutes.map((r) => r.id))
@@ -227,7 +241,7 @@ export function DashboardScreen({
       <DashboardLeftPanel
         leftWrapperRef={leftWrapperRef}
         courierList={courierList}
-        unassignedOrdersCount={unassignedOrders.length}
+        unassignedOrdersCount={ordersVisibleInColumn.length}
         ordersReady={ordersReady}
         ordersCooking={ordersCooking}
         ordersWaiting={ordersWaiting}

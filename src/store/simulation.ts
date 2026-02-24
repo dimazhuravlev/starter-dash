@@ -276,8 +276,14 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
   }
 
   Object.values(orders).forEach((order) => {
-    if (!order.routeId) {
-      orders[order.id] = advanceCookingPipeline(order, now, orderStageMs)
+    const advanced = advanceCookingPipeline(order, now, orderStageMs)
+    if (advanced.status !== order.status) {
+      orders[order.id] =
+        advanced.status === 'ready' && order.routeId
+          ? { ...advanced, status: 'pickup' as const, statusStartedAt: now }
+          : advanced
+    } else {
+      orders[order.id] = advanced
     }
   })
 
@@ -292,18 +298,21 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
       return
     }
 
-    const durationMs = routeStageMs[route.step.kind]
-    const stepStartedAt =
-      route.step.kind === 'returning'
-        ? route.returningStartedAt ?? currentOrder.statusStartedAt
-        : currentOrder.statusStartedAt
-    const elapsed = now - stepStartedAt
-    if (elapsed < durationMs) {
-      return
-    }
-
-    const stepCompletedAt = stepStartedAt + durationMs
     if (route.step.kind === 'pickup') {
+      const hasUnreadyOrders = route.orderIds.some((id) => {
+        const o = orders[id]
+        return o && (o.status === 'waiting_cook' || o.status === 'cooking')
+      })
+      if (hasUnreadyOrders) return
+
+      const pickupStartedAt = Math.max(
+        ...route.orderIds.map((id) => orders[id]?.statusStartedAt ?? 0),
+      )
+      const elapsed = now - pickupStartedAt
+      const durationMs = routeStageMs.pickup
+      if (elapsed < durationMs) return
+
+      const stepCompletedAt = pickupStartedAt + durationMs
       setOrderStatus(orders, currentOrderId, 'enroute', stepCompletedAt)
       routes[route.id] = {
         ...route,
@@ -315,6 +324,15 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
       return
     }
 
+    const durationMs = routeStageMs[route.step.kind]
+    const stepStartedAt =
+      route.step.kind === 'returning'
+        ? route.returningStartedAt ?? currentOrder.statusStartedAt
+        : currentOrder.statusStartedAt
+    const elapsed = now - stepStartedAt
+    if (elapsed < durationMs) return
+
+    const stepCompletedAt = stepStartedAt + durationMs
     if (route.step.kind === 'enroute') {
       setOrderStatus(orders, currentOrderId, 'handoff', stepCompletedAt)
       routes[route.id] = {

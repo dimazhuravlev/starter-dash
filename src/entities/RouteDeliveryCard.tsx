@@ -95,13 +95,44 @@ export function RouteDeliveryCard({
     const elapsed = getElapsedMin(startedAt)
     return elapsed > 0 ? `${label} ${elapsed} мин` : label
   }
+  /** Минуты до готовности заказа (для waiting_cook, cooking); для ready/pickup — 0 */
+  const getMinutesUntilReady = (order: Order): number => {
+    if (order.status === 'ready' || order.status === 'pickup') return 0
+    if (order.status === 'waiting_cook') {
+      const stageMs = orderStageMin.waiting_cook * MINUTE_MS
+      const remainingStage = Math.max(stageMs - (now - order.statusStartedAt), 0)
+      return Math.ceil((remainingStage + orderStageMin.cooking * MINUTE_MS) / MINUTE_MS)
+    }
+    if (order.status === 'cooking') {
+      const stageMs = orderStageMin.cooking * MINUTE_MS
+      const remaining = Math.max(stageMs - (now - order.statusStartedAt), 0)
+      return Math.ceil(remaining / MINUTE_MS)
+    }
+    return 0
+  }
   const currentOrderId = route.orderIds[route.step.orderIndex]
   const currentOrder = currentOrderId ? orders[currentOrderId] : undefined
+  const unreadyOrdersInRoute =
+    route.step.kind === 'pickup'
+      ? route.orderIds
+          .map((id) => orders[id])
+          .filter((o): o is Order => !!o && (o.status === 'waiting_cook' || o.status === 'cooking'))
+      : []
+  const maxMinutesUntilReady =
+    unreadyOrdersInRoute.length > 0
+      ? Math.max(...unreadyOrdersInRoute.map(getMinutesUntilReady))
+      : 0
+  const pickupStartedAt =
+    route.orderIds.length > 0
+      ? Math.max(...route.orderIds.map((id) => orders[id]?.statusStartedAt ?? 0))
+      : 0
   const headerLabel =
     route.step.kind === 'pickup'
-      ? currentOrder
-        ? formatElapsedLabel('Получение', currentOrder.statusStartedAt)
-        : null
+      ? maxMinutesUntilReady > 0
+        ? `Получение через ${maxMinutesUntilReady} мин`
+        : route.orderIds.length > 0
+          ? formatElapsedLabel('Получение', pickupStartedAt)
+          : null
       : route.step.kind === 'returning'
         ? route.returningStartedAt
           ? formatElapsedLabel(routeStepLabel[route.step.kind], route.returningStartedAt)
@@ -120,7 +151,7 @@ export function RouteDeliveryCard({
     >
       {showEditButton ? (
         <div className="delivery__edit-wrap">
-          <Tooltip title="Редактировать маршрут">
+          <Tooltip title="Изменить маршрут">
             <button
               type="button"
               className="delivery__edit-btn"
@@ -128,7 +159,7 @@ export function RouteDeliveryCard({
                 e.stopPropagation()
                 onRevertToDraft(route.id)
               }}
-              aria-label="Редактировать маршрут"
+              aria-label="Изменить маршрут"
             >
               <span
                 className="delivery__edit-icon"

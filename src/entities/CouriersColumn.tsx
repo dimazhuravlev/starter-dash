@@ -37,7 +37,7 @@ export function CouriersColumn({
   now: number
   routeStageMin: RouteStageMin
   highlightedCourierIdFromMap?: string | null
-  onCourierCardClick?: (coords: { lat: number; lng: number }) => void
+  onCourierCardClick?: (courierId: string) => void
 }) {
   const courierSections = useMemo(() => {
     const grouped = new Map<string, Courier[]>()

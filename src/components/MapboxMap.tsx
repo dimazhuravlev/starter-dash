@@ -204,6 +204,7 @@ function createCourierMarkerElement(
   const wrap = document.createElement('div')
   wrap.className = 'mapbox-courier-marker'
   wrap.setAttribute('aria-hidden', 'true')
+  wrap.setAttribute('data-courier-id', courier.id)
   if (onCourierMarkerClick) {
     wrap.style.cursor = 'pointer'
     wrap.style.pointerEvents = 'auto'
@@ -326,6 +327,7 @@ export function MapboxMap({
   const initializedRef = useRef(false)
   const markersRef = useRef<mapboxgl.Marker[]>([])
   const courierMarkersRef = useRef<mapboxgl.Marker[]>([])
+  const courierMarkersByIdRef = useRef<Map<string, mapboxgl.Marker>>(new Map())
   const restaurantMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const popupOpenedAtRef = useRef(0)
@@ -584,19 +586,52 @@ export function MapboxMap({
       }
     }
 
-    const onMapClick = (e: mapboxgl.MapMouseEvent) => {
-      const target = e.originalEvent?.target
-      if (!(target instanceof Node)) return
+    const isMapBackgroundTap = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Node)) return false
       const el = popup.getElement()
-      if (el && el.contains(target)) return
-      if (target instanceof Element && target.closest('.mapbox-order-marker')) return
-      if (target instanceof Element && target.closest('.mapbox-courier-marker')) return
-      if (Date.now() - popupOpenedAtRef.current < 200) return
+      if (el && el.contains(target)) return false
+      if (target instanceof Element && target.closest('.mapbox-order-marker')) return false
+      if (target instanceof Element && target.closest('.mapbox-courier-marker')) return false
+      if (target instanceof Element && target.closest('.mapbox-restaurant-marker')) return false
+      if (target instanceof Element && target.closest('.mapbox-map-controls')) return false
+      if (Date.now() - popupOpenedAtRef.current < 200) return false
+      return true
+    }
+
+    const handleMapBackgroundTap = () => {
       closePopupIfOpen()
-      // Клик по фону карты — сбрасываем маршрут (линия скрывается), как у маркеров
       onMapBackgroundClickRef.current?.()
     }
+
+    const onMapClick = (e: mapboxgl.MapMouseEvent) => {
+      if (!isMapBackgroundTap(e.originalEvent?.target)) return
+      handleMapBackgroundTap()
+    }
     map.on('click', onMapClick)
+
+    let touchStartX = 0
+    let touchStartY = 0
+    const TAP_MOVE_THRESHOLD = 10
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.changedTouches.length > 0) {
+        touchStartX = e.changedTouches[0].clientX
+        touchStartY = e.changedTouches[0].clientY
+      }
+    }
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.changedTouches.length === 0) return
+      const touch = e.changedTouches[0]
+      const dx = Math.abs(touch.clientX - touchStartX)
+      const dy = Math.abs(touch.clientY - touchStartY)
+      if (dx > TAP_MOVE_THRESHOLD || dy > TAP_MOVE_THRESHOLD) return
+      const target = document.elementFromPoint(touch.clientX, touch.clientY)
+      if (!target || !container?.contains(target)) return
+      if (!isMapBackgroundTap(target)) return
+      handleMapBackgroundTap()
+    }
+    const canvas = map.getCanvas()
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true })
+    canvas.addEventListener('touchend', onTouchEnd, { passive: true })
 
     const onDragStart = () => closePopupIfOpen()
     map.on('dragstart', onDragStart)
@@ -609,6 +644,8 @@ export function MapboxMap({
 
     return () => {
       map.off('click', onMapClick)
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchend', onTouchEnd)
       map.off('dragstart', onDragStart)
       document.removeEventListener('click', onClickOutsideMap)
       popup.remove()
@@ -711,25 +748,47 @@ export function MapboxMap({
     })
   }, [mapReady, markers, dimmedStateKey])
 
+  /** Синхронизация маркеров курьеров: обновляем позиции вместо пересоздания (для плавного движения по маршруту) */
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
-    courierMarkersRef.current.forEach((m) => m.remove())
-    courierMarkersRef.current = []
-    courierMarkers.forEach((c) => {
-      const el = createCourierMarkerElement(c, onCourierMarkerClick)
-      const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
-        .setLngLat([c.lng, c.lat])
-        .setOffset([0, MARKER_OFFSET_FULL])
-        .addTo(map)
-      courierMarkersRef.current.push(mapMarker)
-    })
+    const byId = courierMarkersByIdRef.current
+    const newIds = new Set(courierMarkers.map((c) => c.id))
+
+    for (const c of courierMarkers) {
+      const existing = byId.get(c.id)
+      if (existing) {
+        existing.setLngLat([c.lng, c.lat])
+      } else {
+        const el = createCourierMarkerElement(c, onCourierMarkerClick)
+        const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
+          .setLngLat([c.lng, c.lat])
+          .setOffset([0, MARKER_OFFSET_FULL])
+          .addTo(map)
+        byId.set(c.id, mapMarker)
+      }
+    }
+
+    const toRemove: string[] = []
+    for (const [id, marker] of byId.entries()) {
+      if (!newIds.has(id)) {
+        marker.remove()
+        toRemove.push(id)
+      }
+    }
+    toRemove.forEach((id) => byId.delete(id))
+
+    courierMarkersRef.current = Array.from(byId.values())
     updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
+  }, [courierMarkers, mapReady, onCourierMarkerClick])
+
+  useEffect(() => {
     return () => {
-      courierMarkersRef.current.forEach((m) => m.remove())
+      courierMarkersByIdRef.current.forEach((m) => m.remove())
+      courierMarkersByIdRef.current.clear()
       courierMarkersRef.current = []
     }
-  }, [courierMarkers, mapReady, onCourierMarkerClick])
+  }, [mapReady])
 
   const restaurantLat = restaurantCoords?.lat
   const restaurantLng = restaurantCoords?.lng

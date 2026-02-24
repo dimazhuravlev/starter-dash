@@ -130,7 +130,7 @@
 }
 
 .section__title {
-  font: var(--type-text);
+  font: var(--type-subtitle);
   color: var(--text-2);
   padding-left: 8px;
 }

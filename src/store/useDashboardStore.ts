@@ -193,10 +193,11 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           route.orderIds.forEach((orderId) => {
             const order = updatedOrders[orderId]
             if (!order) return
+            const isReady = order.status === 'ready'
             updatedOrders[orderId] = {
               ...order,
-              status: 'pickup',
-              statusStartedAt: state.now,
+              status: isReady ? 'pickup' : order.status,
+              statusStartedAt: isReady ? state.now : order.statusStartedAt,
               routeId,
               courierId: courier.id,
             }

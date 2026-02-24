@@ -23,7 +23,7 @@ export type DashboardLeftPanelProps = {
   highlightedCourierIdFromMap: string | null
   onOrderCardClick: (coords: { lat: number; lng: number }) => void
   focusMapOnRoute: (routeId: string) => void
-  onCourierCardClick: (coords: { lat: number; lng: number }) => void
+  onCourierCardClick: (courierId: string) => void
   createRouteDraft: () => void
   draftRoutes: Route[]
   draftSectionExiting: boolean

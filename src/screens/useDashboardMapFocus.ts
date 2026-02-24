@@ -15,6 +15,8 @@ type UseDashboardMapFocusParams = {
   createRouteDraft: () => string
   attachOrderToRoute: (routeId: string, orderId: string) => void
   resizerJustInteractedRef: MutableRefObject<boolean>
+  /** Ref с актуальными маркерами курьеров (обновляется после useDashboardMapData) */
+  courierMarkersRef: MutableRefObject<CourierMarkerItem[]>
 }
 
 export function useDashboardMapFocus({
@@ -24,6 +26,7 @@ export function useDashboardMapFocus({
   createRouteDraft,
   attachOrderToRoute,
   resizerJustInteractedRef,
+  courierMarkersRef,
 }: UseDashboardMapFocusParams) {
   const [mapFocusCoords, setMapFocusCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [highlightedOrderIdFromMap, setHighlightedOrderIdFromMap] = useState<string | null>(null)
@@ -123,13 +126,31 @@ export function useDashboardMapFocus({
     setFocusedRoutePathCoords(null)
   }, [])
 
-  const handleCourierMarkerClick = useCallback((marker: CourierMarkerItem) => {
-    setHighlightedCourierIdFromMap((prev) => (prev === marker.id ? null : marker.id))
-    setFocusedRouteId(null)
-    setMapFocusBounds(null)
-    setFocusedRoutePathCoords(null)
-    setMapFocusCoords({ lat: marker.lat, lng: marker.lng })
-  }, [])
+  const handleCourierMarkerClick = useCallback(
+    (marker: CourierMarkerItem) => {
+      const state = useDashboardStore.getState()
+      const courier = state.couriers[marker.id]
+      const route = courier?.routeId ? state.routes[courier.routeId] : undefined
+      const routeIsActive =
+        route?.status === 'sent' &&
+        route.step.kind !== 'pickup' &&
+        route.step.kind !== 'returning' &&
+        route.orderIds.length > 0
+
+      if (routeIsActive && route) {
+        focusMapOnRoute(route.id)
+        setHighlightedCourierIdFromMap(marker.id)
+      } else {
+        setFocusedRouteId(null)
+        setMapFocusBounds(null)
+        setFocusedRoutePathCoords(null)
+        setHighlightedCourierIdFromMap((prev) => (prev === marker.id ? null : marker.id))
+        const current = courierMarkersRef.current.find((m) => m.id === marker.id)
+        setMapFocusCoords(current ? { lat: current.lat, lng: current.lng } : { lat: marker.lat, lng: marker.lng })
+      }
+    },
+    [focusMapOnRoute],
+  )
 
   const handleOrderCardClick = useCallback(
     (coords: { lat: number; lng: number }) => {
@@ -143,14 +164,34 @@ export function useDashboardMapFocus({
   )
 
   const handleCourierCardClick = useCallback(
-    (coords: { lat: number; lng: number }) => {
+    (courierId: string) => {
       if (mapViewMode === 'none') return
-      setFocusedRouteId(null)
-      setMapFocusBounds(null)
-      setFocusedRoutePathCoords(null)
-      setMapFocusCoords(coords)
+      const state = useDashboardStore.getState()
+      const courier = state.couriers[courierId]
+      const route = courier?.routeId ? state.routes[courier.routeId] : undefined
+      const routeIsActive =
+        route?.status === 'sent' &&
+        route.step.kind !== 'pickup' &&
+        route.step.kind !== 'returning' &&
+        route.orderIds.length > 0
+
+      if (routeIsActive && route) {
+        focusMapOnRoute(route.id)
+        setHighlightedCourierIdFromMap(courierId)
+      } else {
+        setFocusedRouteId(null)
+        setMapFocusBounds(null)
+        setFocusedRoutePathCoords(null)
+        const marker = courierMarkersRef.current.find((m) => m.id === courierId)
+        if (marker) {
+          setMapFocusCoords({ lat: marker.lat, lng: marker.lng })
+        } else if (courier) {
+          setMapFocusCoords({ lat: courier.coords.lat, lng: courier.coords.lng })
+        }
+        setHighlightedCourierIdFromMap((prev) => (prev === courierId ? null : courierId))
+      }
     },
-    [mapViewMode],
+    [mapViewMode, focusMapOnRoute],
   )
 
   const handleOrderAddToRouteFromMap = useCallback(

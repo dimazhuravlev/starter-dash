@@ -2,7 +2,74 @@ import { useMemo } from 'react'
 import { type Courier, type Order, type Route } from '../model/types'
 import { type CourierMarkerItem } from '../components/MapboxMap'
 import { getOrderRiskStatus, getOrderSlaStatus } from '../entities/OrdersSection'
-import { type OrderStageMin, type RouteStageMin } from '../model/rules'
+import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
+
+function lerp(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  t: number,
+): { lat: number; lng: number } {
+  const s = Math.max(0, Math.min(1, t))
+  return {
+    lat: from.lat + (to.lat - from.lat) * s,
+    lng: from.lng + (to.lng - from.lng) * s,
+  }
+}
+
+/** Позиция курьера на маршруте: ресторан → заказы → ресторан */
+function getCourierPositionOnRoute(
+  route: Route,
+  orders: Record<string, Order>,
+  restaurantCoords: { lat: number; lng: number },
+  now: number,
+  routeStageMin: RouteStageMin,
+): { lat: number; lng: number } | null {
+  const { step, orderIds } = route
+  if (orderIds.length === 0) return null
+
+  const routeStageMs = {
+    pickup: routeStageMin.pickup * MINUTE_MS,
+    enroute: routeStageMin.enroute * MINUTE_MS,
+    handoff: routeStageMin.handoff * MINUTE_MS,
+    returning: routeStageMin.returning * MINUTE_MS,
+  }
+
+  if (step.kind === 'pickup') {
+    return restaurantCoords
+  }
+
+  const currentOrderId = orderIds[step.orderIndex]
+  const currentOrder = orders[currentOrderId]
+  if (!currentOrder) return restaurantCoords
+
+  const stepStartedAt = currentOrder.statusStartedAt
+  const durationMs = routeStageMs[step.kind]
+  const elapsed = now - stepStartedAt
+  const progress = Math.min(1, elapsed / durationMs)
+
+  if (step.kind === 'enroute') {
+    const prevPoint =
+      step.orderIndex === 0 ? restaurantCoords : orders[orderIds[step.orderIndex - 1]]!.coords
+    const nextPoint = currentOrder.coords
+    return lerp(prevPoint, nextPoint, progress)
+  }
+
+  if (step.kind === 'handoff') {
+    return currentOrder.coords
+  }
+
+  if (step.kind === 'returning') {
+    const lastOrder = orders[orderIds[orderIds.length - 1]]
+    if (!lastOrder) return restaurantCoords
+    const prevPoint = lastOrder.coords
+    const returningStartedAt = route.returningStartedAt ?? stepStartedAt
+    const elapsedReturn = now - returningStartedAt
+    const progressReturn = Math.min(1, elapsedReturn / routeStageMs.returning)
+    return lerp(prevPoint, restaurantCoords, progressReturn)
+  }
+
+  return restaurantCoords
+}
 
 export type OrderMarkerItem = {
   id: string
@@ -101,14 +168,30 @@ export function useDashboardMapData({
 
   const courierMarkers = useMemo<CourierMarkerItem[]>(
     () =>
-      Object.values(couriers).map((c) => ({
-        id: c.id,
-        lng: c.coords.lng,
-        lat: c.coords.lat,
-        surname: c.name.split(/\s+/)[0] ?? c.name,
-        type: c.type,
-      })),
-    [couriers],
+      Object.values(couriers).map((c) => {
+        let coords = c.coords
+        if (c.routeId) {
+          const route = routes[c.routeId]
+          if (route?.status === 'sent' && route.orderIds.length > 0) {
+            const pos = getCourierPositionOnRoute(
+              route,
+              orders,
+              restaurantCoords,
+              now,
+              routeStageMin,
+            )
+            if (pos) coords = pos
+          }
+        }
+        return {
+          id: c.id,
+          lng: coords.lng,
+          lat: coords.lat,
+          surname: c.name.split(/\s+/)[0] ?? c.name,
+          type: c.type,
+        }
+      }),
+    [couriers, routes, orders, now, routeStageMin, restaurantCoords],
   )
 
   return {

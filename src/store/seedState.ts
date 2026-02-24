@@ -1,4 +1,4 @@
-import { type Courier, type CourierType, type Route } from '../model/types'
+import { type Courier, type CourierType, type Route, RESTAURANT_COORDS } from '../model/types'
 import {
   MINUTE_MS,
   ORDER_CREATE_INTERVAL_MIN,
@@ -11,11 +11,14 @@ import courierNames from '../data/courierNames.json'
 
 const COURIER_TYPES: CourierType[] = ['pedestrian', 'bike', 'car']
 
-/** Случайные координаты в границах Санкт-Петербурга */
-function getRandomCoordsInSpb(): { lat: number; lng: number } {
+/** Координаты свободного курьера в районе ресторана — разные для каждого, чтобы маркеры не накладывались */
+function getFreeCourierCoordsNearRestaurant(index: number, total: number): { lat: number; lng: number } {
+  const radiusDeg = 0.00072 // ~80 м от ресторана
+  const angle = (index / total) * 2 * Math.PI
+  const jitter = 0.0003 // небольшой разброс
   return {
-    lat: 59.85 + Math.random() * 0.15,
-    lng: 30.15 + Math.random() * 0.4,
+    lat: RESTAURANT_COORDS.lat + radiusDeg * Math.cos(angle) + (Math.random() - 0.5) * jitter,
+    lng: RESTAURANT_COORDS.lng + radiusDeg * Math.sin(angle) + (Math.random() - 0.5) * jitter,
   }
 }
 
@@ -48,6 +51,7 @@ export const buildSeedState = (settings?: Partial<DashboardSettings>): Dashboard
   const couriers: Record<string, Courier> = {}
   const resolvedSettings = resolveSettings(settings)
 
+  const courierCount = courierNames.length
   courierNames.forEach((name, index) => {
     const courierId = `courier_${index + 1}`
     couriers[courierId] = {
@@ -56,7 +60,7 @@ export const buildSeedState = (settings?: Partial<DashboardSettings>): Dashboard
       type: COURIER_TYPES[index % COURIER_TYPES.length],
       status: 'free',
       freeSince: getRandomFreeSince(now),
-      coords: getRandomCoordsInSpb(),
+      coords: getFreeCourierCoordsNearRestaurant(index, courierCount),
     }
   })
 

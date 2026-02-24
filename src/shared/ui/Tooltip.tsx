@@ -29,12 +29,6 @@ function clampToViewport(
   }
 }
 
-/**
- * Обёртка для элемента с тултипом. Тултип появляется через 100ms при ховере
- * и следует за курсором в зоне элемента. Учитывает границы вьюпорта.
- * Рендерится в body через Portal, чтобы не обрезаться overflow родителей.
- * Стиль: Subtitle/12px, padding 2px 3px, border-radius 4px.
- */
 export function Tooltip({ children, title, fill }: TooltipProps) {
   const [visible, setVisible] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })

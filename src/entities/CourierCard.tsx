@@ -77,7 +77,7 @@ export function CourierCard({
   now: number
   routeStageMin: RouteStageMin
   highlightedFromMap?: boolean
-  onFocusOnMap?: (coords: { lat: number; lng: number }) => void
+  onFocusOnMap?: (courierId: string) => void
 }) {
   const attachCourierToRoute = useDashboardStore((state) => state.attachCourierToRoute)
   const createRouteDraft = useDashboardStore((state) => state.createRouteDraft)
@@ -98,7 +98,7 @@ export function CourierCard({
 
   const handleFocusOnMap = () => {
     if (isDragging || dragJustEndedRef.current || !onFocusOnMap) return
-    onFocusOnMap({ ...courier.coords })
+    onFocusOnMap(courier.id)
   }
 
   return (
