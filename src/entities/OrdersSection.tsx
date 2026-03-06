@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatAddress } from '../shared/formatAddress'
 import { useDashboardStore } from '../store/useDashboardStore'
 import { type Order, type Route } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
@@ -150,7 +151,7 @@ function CardOrder({
       }}
     >
       <div className="card__row">
-        <div className="card__title">{order.address}</div>
+        <div className="card__title">{formatAddress(order.address)}</div>
         <div
           className={`sla-pill${slaStatus.isOverdue || isBehindSchedule ? ' sla-pill--overdue' : ''}`}
         >

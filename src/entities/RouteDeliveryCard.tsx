@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
+import { formatAddress } from '../shared/formatAddress'
 import { type Courier, type Order, type Route, type RouteStepKind } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import editIcon from '../assets/Edit.svg'
@@ -240,7 +241,7 @@ export function RouteDeliveryCard({
               >
                 <div className="delivery__order-main">
                   <div className="delivery__order-title">
-                    {order ? order.address : orderId}
+                    {order ? formatAddress(order.address) : orderId}
                   </div>
                   {order ? (
                     <div className="card__order-details delivery__order-details">

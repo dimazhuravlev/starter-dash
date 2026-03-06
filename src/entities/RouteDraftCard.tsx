@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type DragEvent } from 'react'
+import { formatAddress } from '../shared/formatAddress'
 import { type Courier, type Order, type Route } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import crossIcon from '../assets/Cross.svg'
@@ -323,7 +324,7 @@ export function RouteDraftCard({
                     </button>
                   </Tooltip>
                   <span className="route-draft__order-title">
-                    {order ? order.address : orderId}
+                    {order ? formatAddress(order.address) : orderId}
                   </span>
                 </div>
                 <span
@@ -388,7 +389,7 @@ export function RouteDraftCard({
               <option value="">Добавьте заказы</option>
               {availableOrders.map((order) => (
                 <option key={order.id} value={order.id}>
-                  {order.address}
+                  {formatAddress(order.address)}
                 </option>
               ))}
             </select>
