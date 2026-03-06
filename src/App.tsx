@@ -42,6 +42,8 @@ function App() {
   const setOrderStageMin = useDashboardStore((state) => state.setOrderStageMin)
   const setOrderSlaOption = useDashboardStore((state) => state.setOrderSlaOption)
   const setRouteStageMin = useDashboardStore((state) => state.setRouteStageMin)
+  const routeMode = useDashboardStore((state) => state.routeMode)
+  const setRouteMode = useDashboardStore((state) => state.setRouteMode)
 
   const [screen, setScreen] = useState<'dashboard' | 'debug'>('dashboard')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -94,6 +96,8 @@ function App() {
         onDebugClick={() => setScreen(isDebug ? 'dashboard' : 'debug')}
         theme={theme}
         onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        routeMode={routeMode}
+        onRouteModeChange={setRouteMode}
       />
 
       {screen === 'dashboard' && (

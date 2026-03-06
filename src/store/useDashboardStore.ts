@@ -4,11 +4,13 @@ import { type Order, type Route } from '../model/types'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 import { step, type DashboardState } from './simulation'
 import { buildSeedState } from './seedState'
+import { computeAutoAssign } from './autoAssign'
 
 type DashboardActions = {
   tick: (deltaMs: number) => void
   toggleRun: () => void
   setSpeed: (speed: 1 | 3 | 5 | 20) => void
+  setRouteMode: (mode: 'manual' | 'auto') => void
   createRouteDraft: () => string
   deleteRouteDraft: (routeId: string) => void
   detachCourierFromRoute: (routeId: string) => void
@@ -30,13 +32,133 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
     (set, get) => ({
       ...buildSeedState(),
       tick: (deltaMs) => {
-        set((state) => step(state, deltaMs))
+        set((state) => {
+          const next = step(state, deltaMs)
+          if (next.routeMode !== 'auto') return next
+          const result = computeAutoAssign(
+            next.couriers,
+            next.orders,
+            next.routes,
+            next.now,
+            next.orderStageMin,
+          )
+          if (!result) return next
+          const draftRoutes = Object.values(next.routes).filter((r) => r.status === 'draft')
+          const emptyDraft = draftRoutes.find((r) => !r.courierId && r.orderIds.length === 0)
+          let routeId = emptyDraft?.id
+          let routes = next.routes
+          let nextRouteId = next.nextRouteId
+          if (!routeId) {
+            routeId = `route_${nextRouteId}`
+            routes = {
+              ...routes,
+              [routeId]: {
+                id: routeId,
+                courierId: '',
+                orderIds: [],
+                createdAt: next.now,
+                status: 'draft',
+                step: { kind: 'pickup', orderIndex: 0 },
+              },
+            }
+            nextRouteId += 1
+          }
+          let current = { ...next, routes, nextRouteId }
+          const attachCourier = (rid: string, cid: string) => {
+            const r = current.routes[rid]
+            if (!r) return
+            current = {
+              ...current,
+              routes: {
+                ...current.routes,
+                [rid]: { ...r, courierId: cid },
+              },
+            }
+          }
+          const attachOrder = (rid: string, oid: string) => {
+            const r = current.routes[rid]
+            const order = current.orders[oid]
+            if (!r || !order || r.status !== 'draft') return
+            if (r.orderIds.includes(oid) || r.orderIds.length >= 3) return
+            current = {
+              ...current,
+              routes: {
+                ...current.routes,
+                [rid]: { ...r, orderIds: [...r.orderIds, oid] },
+              },
+            }
+          }
+          attachCourier(routeId, result.courierId)
+          result.orderIds.forEach((oid) => attachOrder(routeId, oid))
+          const route = current.routes[routeId]
+          if (!route?.courierId || route.orderIds.length === 0 || route.orderIds.length > 3) {
+            return next
+          }
+          const courier = current.couriers[route.courierId]
+          const firstOrder = current.orders[route.orderIds[0]]
+          if (!courier || !firstOrder) return next
+          const updatedOrders: Record<string, Order> = { ...current.orders }
+          route.orderIds.forEach((orderId) => {
+            const order = updatedOrders[orderId]
+            if (!order) return
+            const isReady = order.status === 'ready'
+            updatedOrders[orderId] = {
+              ...order,
+              status: isReady ? 'pickup' : order.status,
+              statusStartedAt: isReady ? current.now : order.statusStartedAt,
+              routeId,
+              courierId: courier.id,
+            }
+          })
+          const sentRoute: Route = {
+            ...route,
+            status: 'sent',
+            step: { kind: 'pickup', orderIndex: 0 },
+          }
+          let finalRoutes = {
+            ...current.routes,
+            [routeId]: sentRoute,
+          }
+          const draftCount = Object.values(finalRoutes).filter((r) => r.status === 'draft').length
+          if (draftCount === 0) {
+            const newRouteId = `route_${nextRouteId}`
+            finalRoutes = {
+              ...finalRoutes,
+              [newRouteId]: {
+                id: newRouteId,
+                courierId: '',
+                orderIds: [],
+                createdAt: current.now,
+                status: 'draft',
+                step: { kind: 'pickup', orderIndex: 0 },
+              },
+            }
+            nextRouteId += 1
+          }
+          return {
+            ...current,
+            routes: finalRoutes,
+            nextRouteId,
+            couriers: {
+              ...current.couriers,
+              [courier.id]: {
+                ...courier,
+                status: 'assigned',
+                routeId,
+              },
+            },
+            orders: updatedOrders,
+          }
+        })
       },
       toggleRun: () => {
         set((state) => ({ ...state, isRunning: !state.isRunning }))
       },
       setSpeed: (speed) => {
         set((state) => ({ ...state, speed }))
+      },
+      setRouteMode: (mode) => {
+        set((state) => ({ ...state, routeMode: mode }))
       },
       createRouteDraft: () => {
         const { nextRouteId, now } = get()
@@ -341,6 +463,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
         orderStageMin: state.orderStageMin,
         orderSlaOptionsMin: state.orderSlaOptionsMin,
         routeStageMin: state.routeStageMin,
+        routeMode: state.routeMode,
       }),
     },
   ),

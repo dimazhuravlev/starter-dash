@@ -8,6 +8,8 @@ import {
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import addressSeeds from '../data/addressSeeds.json'
 
+export type RouteMode = 'manual' | 'auto'
+
 export type DashboardState = {
   now: number
   isRunning: boolean
@@ -22,6 +24,7 @@ export type DashboardState = {
   orderStageMin: OrderStageMin
   orderSlaOptionsMin: number[]
   routeStageMin: RouteStageMin
+  routeMode: RouteMode
 }
 
 const getOrderStageMs = (orderStageMin: OrderStageMin) => ({
