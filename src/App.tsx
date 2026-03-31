@@ -7,7 +7,7 @@ import { AppHeader } from './shared/ui/AppHeader'
 import { AppSubheader } from './shared/ui/AppSubheader'
 import initialRestaurantsData from './data/restaurants.json'
 
-const tabItems = ['Заказы', 'Рестораны', 'Смены', 'Курьеры']
+const tabItems = ['Заказы', 'Рестораны']
 
 function App() {
   const now = useDashboardStore((state) => state.now)

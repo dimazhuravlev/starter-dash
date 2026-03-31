@@ -21,6 +21,14 @@
   padding: 0 12px;
   color: var(--text-inverted);
   font: var(--type-subtitle);
+  transition:
+    opacity 200ms ease,
+    box-shadow 200ms ease;
+}
+
+/* Включённое состояние (например симулятор запущен) */
+.primary-btn--default.primary-btn--active {
+  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .primary-btn--default.primary-btn--with-icon {
@@ -57,7 +65,11 @@
   box-shadow: none;
   color: var(--text-1);
   font: var(--type-text);
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease,
+    border-color 200ms ease,
+    background 200ms ease;
 }
 
 .primary-btn--ghost::before {
@@ -76,7 +88,21 @@
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
 }
 
-.primary-btn--ghost:hover::before,
+.primary-btn--ghost:hover::before {
+  opacity: 1;
+}
+
+/* Выбранное состояние (скорость, переключатели) — заметно отличается от невыбранных */
+.primary-btn--ghost.primary-btn--active {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
 .primary-btn--ghost.primary-btn--active::before {
+  opacity: 0;
+}
+
+.primary-btn--ghost.primary-btn--active:hover::before {
   opacity: 1;
 }

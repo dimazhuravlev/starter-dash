@@ -61,7 +61,7 @@ export function RestaurantsScreen({ restaurants, onRestaurantsChange }: Restaura
   // Global settings — independent state
   const [globalPickup, setGlobalPickup] = useState(3)
   const [globalHandoff, setGlobalHandoff] = useState(3)
-  const [globalMode, setGlobalMode] = useState<'auto' | 'manual'>('auto')
+  const [globalMode, setGlobalMode] = useState<'auto' | 'manual'>('manual')
 
   const filtered = search
     ? restaurants.filter(

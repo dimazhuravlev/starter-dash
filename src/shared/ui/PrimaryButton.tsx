@@ -28,6 +28,7 @@ export function PrimaryButton({
     <button
       type="button"
       className={`${base} ${variantClass} ${activeClass} ${withIconClass} ${className}`.trim()}
+      aria-pressed={active ? true : undefined}
       {...rest}
     >
       {iconStart ? (

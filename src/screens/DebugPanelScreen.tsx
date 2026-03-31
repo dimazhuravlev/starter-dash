@@ -70,7 +70,7 @@ export function DebugPanelScreen({
       </header>
 
       <section className="debug__controls">
-        <PrimaryButton variant="default" onClick={toggleRun}>
+        <PrimaryButton variant="default" active={isRunning} onClick={toggleRun}>
           {isRunning ? 'Пауза' : 'Старт'}
         </PrimaryButton>
         <div className="debug__btn-group">
