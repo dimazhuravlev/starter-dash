@@ -12,6 +12,7 @@ type UseDashboardMapFocusParams = {
   routes: Record<string, Route>
   orders: Record<string, Order>
   draftRoutes: Route[]
+  routeMode: 'auto' | 'manual'
   createRouteDraft: () => string
   attachOrderToRoute: (routeId: string, orderId: string) => void
   resizerJustInteractedRef: MutableRefObject<boolean>
@@ -23,6 +24,7 @@ export function useDashboardMapFocus({
   routes,
   orders,
   draftRoutes,
+  routeMode,
   createRouteDraft,
   attachOrderToRoute,
   resizerJustInteractedRef,
@@ -196,8 +198,10 @@ export function useDashboardMapFocus({
 
   const handleOrderAddToRouteFromMap = useCallback(
     (orderId: string) => {
+      if (routeMode === 'auto') return
       const draftWithSpace = draftRoutes.find((r) => r.orderIds.length < 3)
       const routeId = draftWithSpace ? draftWithSpace.id : createRouteDraft()
+      if (!routeId) return
       setHighlightedOrderIdFromMap(null)
       attachOrderToRoute(routeId, orderId)
       focusMapOnRoute(routeId)
@@ -205,7 +209,7 @@ export function useDashboardMapFocus({
         if (mountedRef.current) setHighlightedOrderIdFromMap(orderId)
       })
     },
-    [draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],
+    [routeMode, draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],
   )
 
   const handleMapViewModeChange = useCallback((mode: MapViewMode) => {

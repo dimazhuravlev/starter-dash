@@ -7,6 +7,8 @@ import { OrdersSection } from '../entities/OrdersSection'
 import { RoutesColumn } from '../entities/RoutesColumn'
 
 export type DashboardLeftPanelProps = {
+  routeMode: 'auto' | 'manual'
+  onRouteModeChange: (mode: 'auto' | 'manual') => void
   leftWrapperRef: RefObject<HTMLDivElement | null>
   courierList: Courier[]
   unassignedOrdersCount: number
@@ -24,17 +26,19 @@ export type DashboardLeftPanelProps = {
   onOrderCardClick: (coords: { lat: number; lng: number }) => void
   focusMapOnRoute: (routeId: string) => void
   onCourierCardClick: (courierId: string) => void
-  createRouteDraft: () => void
   draftRoutes: Route[]
+  /** Отправленные pickup с неготовыми заказами — в секции «Собрать маршрут» вместе с черновиками */
+  sentPickupAwaitingKitchen: Route[]
   draftSectionExiting: boolean
   setDraftSectionExiting: (value: boolean) => void
-  assignedRoutes: Route[]
+  manualAssignedRoutes: Route[]
+  autoAssembledRoutes: Route[]
   recentlyRevertedToDraftRouteIds: string[]
   nextRevertedDraftId: string | null
   recentlySentRouteIds: string[]
   pendingSendRouteId: string | null
   pendingRevertRouteId: string | null
-  onDeleteDraft: (routeId: string) => void
+  onResetDraftTemplate: (routeId: string) => void
   detachCourierFromRoute: (routeId: string) => void
   detachOrderFromRoute: (routeId: string, orderId: string) => void
   attachCourierToRoute: (routeId: string, courierId: string) => void
@@ -46,9 +50,13 @@ export type DashboardLeftPanelProps = {
   onRevertAfterExit: (routeId: string) => void
   clientRoutes: Route[]
   recentlyMovedToActiveRouteIds: string[]
+  autoTemplateShimmerRouteIds: string[]
+  onAutoTemplateShimmerEnd: (routeId: string) => void
 }
 
 export function DashboardLeftPanel({
+  routeMode,
+  onRouteModeChange,
   leftWrapperRef,
   courierList,
   unassignedOrdersCount,
@@ -66,17 +74,18 @@ export function DashboardLeftPanel({
   onOrderCardClick,
   focusMapOnRoute,
   onCourierCardClick,
-  createRouteDraft,
   draftRoutes,
+  sentPickupAwaitingKitchen,
   draftSectionExiting,
   setDraftSectionExiting,
-  assignedRoutes,
+  manualAssignedRoutes,
+  autoAssembledRoutes,
   recentlyRevertedToDraftRouteIds,
   nextRevertedDraftId,
   recentlySentRouteIds,
   pendingSendRouteId,
   pendingRevertRouteId,
-  onDeleteDraft,
+  onResetDraftTemplate,
   detachCourierFromRoute,
   detachOrderFromRoute,
   attachCourierToRoute,
@@ -88,6 +97,8 @@ export function DashboardLeftPanel({
   onRevertAfterExit,
   clientRoutes,
   recentlyMovedToActiveRouteIds,
+  autoTemplateShimmerRouteIds,
+  onAutoTemplateShimmerEnd,
 }: DashboardLeftPanelProps) {
   return (
     <div className="dashboard__left-wrapper" ref={leftWrapperRef}>
@@ -143,11 +154,14 @@ export function DashboardLeftPanel({
         </section>
         <div className="dashboard__divider" aria-hidden />
         <RoutesColumn
-          createRouteDraft={createRouteDraft}
+          routeMode={routeMode}
+          onRouteModeChange={onRouteModeChange}
           draftRoutes={draftRoutes}
+          sentPickupAwaitingKitchen={sentPickupAwaitingKitchen}
           draftSectionExiting={draftSectionExiting}
           setDraftSectionExiting={setDraftSectionExiting}
-          assignedRoutes={assignedRoutes}
+          manualAssignedRoutes={manualAssignedRoutes}
+          autoAssembledRoutes={autoAssembledRoutes}
           courierList={courierList}
           couriers={couriers}
           orders={orders}
@@ -161,7 +175,7 @@ export function DashboardLeftPanel({
           recentlySentRouteIds={recentlySentRouteIds}
           pendingSendRouteId={pendingSendRouteId}
           pendingRevertRouteId={pendingRevertRouteId}
-          onDeleteDraft={onDeleteDraft}
+          onResetDraftTemplate={onResetDraftTemplate}
           detachCourierFromRoute={detachCourierFromRoute}
           detachOrderFromRoute={detachOrderFromRoute}
           attachCourierToRoute={attachCourierToRoute}
@@ -172,6 +186,8 @@ export function DashboardLeftPanel({
           onSendAfterExit={onSendAfterExit}
           onRevertClick={onRevertClick}
           onRevertAfterExit={onRevertAfterExit}
+          autoTemplateShimmerRouteIds={autoTemplateShimmerRouteIds}
+          onAutoTemplateShimmerEnd={onAutoTemplateShimmerEnd}
         />
         <div className="dashboard__divider" aria-hidden />
         <DeliveryColumn

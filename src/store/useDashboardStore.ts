@@ -1,10 +1,164 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { type Order, type Route } from '../model/types'
+import { type Courier, type Order, type Route } from '../model/types'
+import { routeHasUnreadyKitchenOrders } from '../model/routeBuckets'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 import { step, type DashboardState } from './simulation'
 import { buildSeedState } from './seedState'
 import { computeAutoAssign } from './autoAssign'
+
+function isDraftTemplateEmpty(route: Route): boolean {
+  return route.status === 'draft' && !route.courierId && route.orderIds.length === 0
+}
+
+/** В ручном режиме — ровно один пустой шаблон: лишние пустые удаляются, при отсутствии создаётся. */
+function finalizeManualDraftRoutes(state: DashboardState): DashboardState {
+  if (state.routeMode !== 'manual') return state
+  const drafts = Object.values(state.routes).filter((r) => r.status === 'draft')
+  const empty = drafts.filter(isDraftTemplateEmpty)
+  if (empty.length === 0) {
+    const routeId = `route_${state.nextRouteId}`
+    const newRoute: Route = {
+      id: routeId,
+      courierId: '',
+      orderIds: [],
+      createdAt: state.now,
+      status: 'draft',
+      assembly: 'manual',
+      step: { kind: 'pickup', orderIndex: 0 },
+    }
+    return {
+      ...state,
+      routes: { ...state.routes, [routeId]: newRoute },
+      nextRouteId: state.nextRouteId + 1,
+    }
+  }
+  if (empty.length > 1) {
+    const sorted = [...empty].sort((a, b) => a.createdAt - b.createdAt)
+    const toRemove = sorted.slice(1).map((r) => r.id)
+    let nextRoutes = { ...state.routes }
+    for (const id of toRemove) {
+      const { [id]: removed, ...rest } = nextRoutes
+      void removed
+      nextRoutes = rest
+    }
+    return { ...state, routes: nextRoutes }
+  }
+  return state
+}
+
+/** Sent pickup (авто, ждём кухню) → draft-шаблон: курьер свободен, стадии заказов на кухне и таймеры не трогаем */
+function sentAutoUnreadyPickupToDraftTemplate(
+  route: Route,
+  orders: Record<string, Order>,
+  couriers: Record<string, Courier>,
+): {
+  orders: Record<string, Order>
+  couriers: Record<string, Courier>
+  draftRoute: Route
+} {
+  const courier = route.courierId ? couriers[route.courierId] : undefined
+  const updatedOrders: Record<string, Order> = { ...orders }
+  route.orderIds.forEach((orderId) => {
+    const order = updatedOrders[orderId]
+    if (!order) return
+    updatedOrders[orderId] = {
+      ...order,
+      routeId: route.id,
+      courierId: undefined,
+    }
+  })
+  const draftRoute: Route = {
+    ...route,
+    status: 'draft',
+    assembly: 'manual',
+    step: { kind: 'pickup', orderIndex: 0 },
+  }
+  const nextCouriers = { ...couriers }
+  if (courier) {
+    nextCouriers[courier.id] = {
+      ...courier,
+      status: 'free',
+      routeId: undefined,
+    }
+  }
+  return { orders: updatedOrders, couriers: nextCouriers, draftRoute }
+}
+
+/** Снять с заказов привязку к черновику и освободить курьера (как при расформировании в авто-режиме). */
+function releaseOrdersAndCourierFromDraftRoute(
+  now: number,
+  route: Route,
+  orders: Record<string, Order>,
+  couriers: Record<string, Courier>,
+): { orders: Record<string, Order>; couriers: Record<string, Courier> } {
+  let nextOrders = { ...orders }
+  let nextCouriers = { ...couriers }
+  const routeId = route.id
+
+  for (const orderId of Object.keys(nextOrders)) {
+    const order = nextOrders[orderId]
+    if (!order) continue
+    const belongs =
+      order.routeId === routeId || (!order.routeId && route.orderIds.includes(orderId))
+    if (!belongs) continue
+    nextOrders[orderId] = {
+      ...order,
+      routeId: undefined,
+      courierId: undefined,
+      ...(order.status === 'pickup'
+        ? { status: 'ready' as const, statusStartedAt: now }
+        : {}),
+    }
+  }
+
+  if (route.courierId) {
+    const c = nextCouriers[route.courierId]
+    if (c?.routeId === routeId) {
+      nextCouriers[route.courierId] = {
+        ...c,
+        status: 'free',
+        routeId: undefined,
+        freeSince: now,
+      }
+    }
+  }
+
+  return { orders: nextOrders, couriers: nextCouriers }
+}
+
+/** Ручной → авто: расформировать все несабмиченные черновики — заказы и курьер отвязаны, маршруты удалены */
+function disassembleAllDraftRoutes(
+  now: number,
+  routes: Record<string, Route>,
+  orders: Record<string, Order>,
+  couriers: Record<string, Courier>,
+): {
+  routes: Record<string, Route>
+  orders: Record<string, Order>
+  couriers: Record<string, Courier>
+} {
+  let nextOrders = { ...orders }
+  let nextCouriers = { ...couriers }
+  const draftIds = Object.keys(routes).filter((id) => routes[id]?.status === 'draft')
+
+  for (const routeId of draftIds) {
+    const route = routes[routeId]
+    if (!route) continue
+    const released = releaseOrdersAndCourierFromDraftRoute(now, route, nextOrders, nextCouriers)
+    nextOrders = released.orders
+    nextCouriers = released.couriers
+  }
+
+  let nextRoutes = { ...routes }
+  for (const routeId of draftIds) {
+    const { [routeId]: removed, ...rest } = nextRoutes
+    void removed
+    nextRoutes = rest
+  }
+
+  return { routes: nextRoutes, orders: nextOrders, couriers: nextCouriers }
+}
 
 type DashboardActions = {
   tick: (deltaMs: number) => void
@@ -13,6 +167,8 @@ type DashboardActions = {
   setRouteMode: (mode: 'manual' | 'auto') => void
   createRouteDraft: () => string
   deleteRouteDraft: (routeId: string) => void
+  /** Сбросить курьера и заказы в черновике; шаблон (id) сохраняется */
+  resetRouteDraft: (routeId: string) => void
   detachCourierFromRoute: (routeId: string) => void
   attachCourierToRoute: (routeId: string, courierId: string) => void
   detachOrderFromRoute: (routeId: string, orderId: string) => void
@@ -113,28 +269,14 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           const sentRoute: Route = {
             ...route,
             status: 'sent',
+            assembly: 'auto',
             step: { kind: 'pickup', orderIndex: 0 },
           }
-          let finalRoutes = {
+          const finalRoutes = {
             ...current.routes,
             [routeId]: sentRoute,
           }
-          const draftCount = Object.values(finalRoutes).filter((r) => r.status === 'draft').length
-          if (draftCount === 0) {
-            const newRouteId = `route_${nextRouteId}`
-            finalRoutes = {
-              ...finalRoutes,
-              [newRouteId]: {
-                id: newRouteId,
-                courierId: '',
-                orderIds: [],
-                createdAt: current.now,
-                status: 'draft',
-                step: { kind: 'pickup', orderIndex: 0 },
-              },
-            }
-            nextRouteId += 1
-          }
+          /* В авторежиме не держим пустой шаблон — следующий tick создаст черновик inline при необходимости */
           return {
             ...current,
             routes: finalRoutes,
@@ -158,10 +300,68 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
         set((state) => ({ ...state, speed }))
       },
       setRouteMode: (mode) => {
-        set((state) => ({ ...state, routeMode: mode }))
+        set((state) => {
+          if (mode === 'auto') {
+            const { routes, orders, couriers } = disassembleAllDraftRoutes(
+              state.now,
+              state.routes,
+              state.orders,
+              state.couriers,
+            )
+            return { ...state, routeMode: mode, routes, orders, couriers }
+          }
+          if (mode === 'manual') {
+            let routes: Record<string, Route> = { ...state.routes }
+            let orders: Record<string, Order> = { ...state.orders }
+            let couriers: Record<string, Courier> = { ...state.couriers }
+            let nextRouteId = state.nextRouteId
+
+            if (state.routeMode === 'auto') {
+              const idsToConvert = Object.keys(routes).filter((id) => {
+                const r = routes[id]
+                return (
+                  r &&
+                  r.status === 'sent' &&
+                  r.step.kind === 'pickup' &&
+                  r.assembly === 'auto' &&
+                  routeHasUnreadyKitchenOrders(r, orders)
+                )
+              })
+              for (const routeId of idsToConvert) {
+                const route = routes[routeId]
+                if (!route) continue
+                const { orders: nextOrders, couriers: nextCouriers, draftRoute } =
+                  sentAutoUnreadyPickupToDraftTemplate(route, orders, couriers)
+                orders = nextOrders
+                couriers = nextCouriers
+                routes = { ...routes, [routeId]: draftRoute }
+              }
+            }
+
+            return finalizeManualDraftRoutes({
+              ...state,
+              routeMode: mode,
+              routes,
+              orders,
+              couriers,
+              nextRouteId,
+            })
+          }
+          return { ...state, routeMode: mode }
+        })
       },
       createRouteDraft: () => {
-        const { nextRouteId, now } = get()
+        if (get().routeMode === 'auto') {
+          return ''
+        }
+        const before = get()
+        const existingEmpty = Object.values(before.routes).find(
+          (r) => r.status === 'draft' && !r.courierId && r.orderIds.length === 0,
+        )
+        if (existingEmpty) {
+          return existingEmpty.id
+        }
+        const { nextRouteId, now } = before
         const routeId = `route_${nextRouteId}`
         const newRoute: Route = {
           id: routeId,
@@ -169,19 +369,22 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           orderIds: [],
           createdAt: now,
           status: 'draft',
+          assembly: 'manual',
           step: {
             kind: 'pickup',
             orderIndex: 0,
           },
         }
-        set((state) => ({
-          ...state,
-          routes: {
-            ...state.routes,
-            [routeId]: newRoute,
-          },
-          nextRouteId: state.nextRouteId + 1,
-        }))
+        set((state) =>
+          finalizeManualDraftRoutes({
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: newRoute,
+            },
+            nextRouteId: state.nextRouteId + 1,
+          }),
+        )
         return routeId
       },
       deleteRouteDraft: (routeId) => {
@@ -190,12 +393,40 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           if (!route || route.status !== 'draft') {
             return state
           }
+          const { orders: nextOrders, couriers: nextCouriers } = releaseOrdersAndCourierFromDraftRoute(
+            state.now,
+            route,
+            state.orders,
+            state.couriers,
+          )
           const { [routeId]: removedRoute, ...restRoutes } = state.routes
           void removedRoute
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
             routes: restRoutes,
+            orders: nextOrders,
+            couriers: nextCouriers,
+          })
+        })
+      },
+      resetRouteDraft: (routeId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || route.status !== 'draft') {
+            return state
           }
+          return finalizeManualDraftRoutes({
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: {
+                ...route,
+                courierId: '',
+                orderIds: [],
+                step: { kind: 'pickup', orderIndex: 0 },
+              },
+            },
+          })
         })
       },
       detachCourierFromRoute: (routeId) => {
@@ -204,7 +435,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           if (!route || route.status !== 'draft') {
             return state
           }
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
             routes: {
               ...state.routes,
@@ -213,7 +444,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
                 courierId: '',
               },
             },
-          }
+          })
         })
       },
       attachCourierToRoute: (routeId, courierId) => {
@@ -222,7 +453,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           if (!route) {
             return state
           }
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
             routes: {
               ...state.routes,
@@ -231,7 +462,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
                 courierId,
               },
             },
-          }
+          })
         })
       },
       detachOrderFromRoute: (routeId, orderId) => {
@@ -243,7 +474,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           if (!route.orderIds.includes(orderId)) {
             return state
           }
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
             routes: {
               ...state.routes,
@@ -252,7 +483,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
                 orderIds: route.orderIds.filter((id) => id !== orderId),
               },
             },
-          }
+          })
         })
       },
       attachOrderToRoute: (routeId, orderId) => {
@@ -265,7 +496,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           if (route.orderIds.includes(orderId) || route.orderIds.length >= 3) {
             return state
           }
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
             routes: {
               ...state.routes,
@@ -274,7 +505,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
                 orderIds: [...route.orderIds, orderId],
               },
             },
-          }
+          })
         })
       },
       reorderRouteOrders: (routeId, fromIndex, toIndex) => {
@@ -328,6 +559,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           const sentRoute: Route = {
             ...route,
             status: 'sent',
+            assembly: 'manual',
             step: {
               kind: 'pickup',
               orderIndex: 0,
@@ -337,28 +569,10 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
             ...state.routes,
             [routeId]: sentRoute,
           }
-          // Если после отправки не осталось ни одного черновика — создаём один пустой шаблон
-          const draftCount = Object.values(newRoutes).filter((r) => r.status === 'draft').length
-          let routes = newRoutes
-          let nextRouteId = state.nextRouteId
-          if (draftCount === 0) {
-            const newRouteId = `route_${nextRouteId}`
-            const newDraft: Route = {
-              id: newRouteId,
-              courierId: '',
-              orderIds: [],
-              createdAt: state.now,
-              status: 'draft',
-              step: { kind: 'pickup', orderIndex: 0 },
-            }
-            routes = { ...newRoutes, [newRouteId]: newDraft }
-            nextRouteId = state.nextRouteId + 1
-          }
 
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
-            routes,
-            nextRouteId,
+            routes: newRoutes,
             couriers: {
               ...state.couriers,
               [courier.id]: {
@@ -368,11 +582,14 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
               },
             },
             orders: updatedOrders,
-          }
+          })
         })
       },
       revertRouteToDraft: (routeId) => {
         set((state) => {
+          if (state.routeMode === 'auto') {
+            return state
+          }
           const route = state.routes[routeId]
           if (!route || route.status !== 'sent') {
             return state
@@ -403,7 +620,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
               routeId: undefined,
             }
           }
-          return {
+          return finalizeManualDraftRoutes({
             ...state,
             routes: {
               ...state.routes,
@@ -411,7 +628,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
             },
             couriers: nextCouriers,
             orders: updatedOrders,
-          }
+          })
         })
       },
       resetSeed: () => {

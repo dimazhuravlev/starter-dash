@@ -100,8 +100,23 @@
   opacity: 0.5;
 }
 
-.card--in-draft {
-  opacity: 0.4;
+/* Заказ уже в черновике / отправленном маршруте — в колонке «Заказы» визуально приглушён */
+.card--order.card--order-in-route {
+  opacity: 0.5;
+}
+
+.card--order.card--order-new.card--order-in-route {
+  animation-name: order-appear-in-route;
+}
+
+@keyframes order-appear-in-route {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 0.5;
+  }
 }
 
 @keyframes route-draft-appear {
@@ -390,8 +405,8 @@
   align-items: center;
   gap: 8px;
   border-radius: 16px;
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--success-surface);
+  color: var(--success);
   text-align: center;
   font: var(--type-subtitle);
   font-style: normal;
@@ -454,8 +469,8 @@
 
 .chip--sla {
   flex-shrink: 0;
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--success-surface);
+  color: var(--success);
   font: var(--type-subtitle);
   font-variant-numeric: tabular-nums;
   border-radius: 999px;
@@ -480,9 +495,9 @@
 
 .card--order .chip--sla {
   flex-shrink: 0;
-  background: var(--accent-surface);
-  border: 1px solid rgba(46, 204, 113, 0.4);
-  color: var(--accent);
+  background: var(--success-surface);
+  border: 1px solid rgba(3, 171, 0, 0.4);
+  color: var(--success);
   font: var(--type-subtitle);
   font-variant-numeric: tabular-nums;
   border-radius: 999px;

@@ -58,6 +58,10 @@ const hasDraftRoute = (routes: Record<string, Route>) =>
   Object.values(routes).some((route) => route.status === 'draft')
 
 export const maybeCreateAutoDraftRoute = (routes: Record<string, Route>, createRouteDraft: () => string) => {
+  if (useDashboardStore.getState().routeMode === 'auto') {
+    autoDraftRouteId = null
+    return
+  }
   if (hasDraftRoute(routes)) {
     autoDraftRouteId = null
     return

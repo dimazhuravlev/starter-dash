@@ -1,18 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useDashboardStore } from './store/useDashboardStore'
 import { DashboardScreen } from './screens/DashboardScreen'
 import { DebugPanelScreen } from './screens/DebugPanelScreen'
+import { RestaurantsScreen, type Restaurant } from './screens/RestaurantsScreen'
 import { AppHeader } from './shared/ui/AppHeader'
 import { AppSubheader } from './shared/ui/AppSubheader'
-const tabItems = ['Заказы', 'Смены', 'Курьеры', 'Статистика']
+import initialRestaurantsData from './data/restaurants.json'
 
-const restaurantTabs = [
-  { label: 'Большой', count: 5 },
-  { label: 'Пошехонское', count: 82 },
-  { label: 'Некрасова', count: 11 },
-  { label: 'Мира', count: 12 },
-  { label: 'Ярославская', count: 21 },
-]
+const tabItems = ['Заказы', 'Рестораны', 'Смены', 'Курьеры']
 
 function App() {
   const now = useDashboardStore((state) => state.now)
@@ -30,6 +25,7 @@ function App() {
   const setSpeed = useDashboardStore((state) => state.setSpeed)
   const resetSeed = useDashboardStore((state) => state.resetSeed)
   const createRouteDraft = useDashboardStore((state) => state.createRouteDraft)
+  const resetRouteDraft = useDashboardStore((state) => state.resetRouteDraft)
   const deleteRouteDraft = useDashboardStore((state) => state.deleteRouteDraft)
   const detachCourierFromRoute = useDashboardStore((state) => state.detachCourierFromRoute)
   const attachCourierToRoute = useDashboardStore((state) => state.attachCourierToRoute)
@@ -42,23 +38,29 @@ function App() {
   const setOrderStageMin = useDashboardStore((state) => state.setOrderStageMin)
   const setOrderSlaOption = useDashboardStore((state) => state.setOrderSlaOption)
   const setRouteStageMin = useDashboardStore((state) => state.setRouteStageMin)
-  const routeMode = useDashboardStore((state) => state.routeMode)
   const setRouteMode = useDashboardStore((state) => state.setRouteMode)
+  const routeMode = useDashboardStore((state) => state.routeMode)
 
-  const [screen, setScreen] = useState<'dashboard' | 'debug'>('dashboard')
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(initialRestaurantsData as Restaurant[])
+  const [screen, setScreen] = useState<'dashboard' | 'restaurants' | 'debug'>('dashboard')
+  const [activeTab, setActiveTab] = useState(0)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeRestaurantTab, setActiveRestaurantTab] = useState(0)
+
+  const restaurantTabs = restaurants.map((r) => ({
+    label: r.name,
+  }))
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof localStorage === 'undefined') return 'dark'
     const saved = localStorage.getItem('theme')
     return saved === 'light' ? 'light' : 'dark'
   })
 
-  // При перезагрузке страницы создаём пустой шаблон маршрута, если нет ни одного черновика
+  // Пустой шаблон только в ручном режиме
   useEffect(() => {
-    const { routes } = useDashboardStore.getState()
+    const { routes, routeMode } = useDashboardStore.getState()
     const hasDraft = Object.values(routes).some((r) => r.status === 'draft')
-    if (!hasDraft) {
+    if (!hasDraft && routeMode === 'manual') {
       useDashboardStore.getState().createRouteDraft()
     }
   }, [])
@@ -78,6 +80,27 @@ function App() {
     if (typeof localStorage !== 'undefined') localStorage.setItem('theme', theme)
   }, [theme])
 
+  // Синхронизация routeMode в store с режимом активного ресторана
+  useEffect(() => {
+    if (restaurants[activeRestaurantTab]) {
+      setRouteMode(restaurants[activeRestaurantTab].routeMode)
+    }
+  }, [activeRestaurantTab, restaurants, setRouteMode])
+
+  const handleRouteModeChange = useCallback(
+    (mode: 'auto' | 'manual') => {
+      setRouteMode(mode)
+      setRestaurants((prev) => {
+        const i = activeRestaurantTab
+        if (i < 0 || i >= prev.length) return prev
+        const next = [...prev]
+        next[i] = { ...next[i], routeMode: mode }
+        return next
+      })
+    },
+    [activeRestaurantTab, setRouteMode],
+  )
+
   // Сброс классов body при переключении экрана/таба (если остались is-dragging/is-resizing после днд или ресайза)
   useEffect(() => {
     document.body.classList.remove('is-dragging', 'is-resizing')
@@ -89,18 +112,23 @@ function App() {
     <div className="app-shell">
       <AppHeader
         tabItems={tabItems}
+        activeTab={activeTab}
         isMenuOpen={isMenuOpen}
         onMenuToggle={() => setIsMenuOpen((open) => !open)}
-        onTabClick={() => setIsMenuOpen(false)}
+        onTabClick={(index) => {
+          setIsMenuOpen(false)
+          setActiveTab(index)
+          if (index === 0) setScreen('dashboard')
+          else if (index === 1) setScreen('restaurants')
+          else setScreen('dashboard')
+        }}
         isDebug={isDebug}
         onDebugClick={() => setScreen(isDebug ? 'dashboard' : 'debug')}
         theme={theme}
         onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
-        routeMode={routeMode}
-        onRouteModeChange={setRouteMode}
       />
 
-      {screen === 'dashboard' && (
+      {screen === 'dashboard' && activeTab === 0 && (
         <AppSubheader
           tabs={restaurantTabs}
           activeIndex={activeRestaurantTab}
@@ -116,11 +144,14 @@ function App() {
         >
           <DashboardScreen
             key="dashboard"
+            routeMode={routeMode}
+            onRouteModeChange={handleRouteModeChange}
             theme={theme}
             orders={orders}
             couriers={couriers}
             routes={routes}
             createRouteDraft={createRouteDraft}
+            resetRouteDraft={resetRouteDraft}
             deleteRouteDraft={deleteRouteDraft}
             detachCourierFromRoute={detachCourierFromRoute}
             attachCourierToRoute={attachCourierToRoute}
@@ -139,8 +170,14 @@ function App() {
           aria-hidden={screen !== 'dashboard' || activeRestaurantTab === 0}
         >
           <div key={`tab-${activeRestaurantTab}`} className="app-content__empty">
-            Заказы {restaurantTabs[activeRestaurantTab].label}, {restaurantTabs[activeRestaurantTab].count}
+            Заказы {restaurantTabs[activeRestaurantTab].label}
           </div>
+        </div>
+        <div
+          className={`app-content__pane${screen === 'restaurants' ? '' : ' app-content__pane--hidden'}`}
+          aria-hidden={screen !== 'restaurants'}
+        >
+          <RestaurantsScreen restaurants={restaurants} onRestaurantsChange={setRestaurants} />
         </div>
         <div
           className={`app-content__pane${screen === 'debug' ? '' : ' app-content__pane--hidden'}`}

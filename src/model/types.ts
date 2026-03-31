@@ -50,6 +50,9 @@ export type Courier = {
   coords: { lat: number; lng: number }
 }
 
+/** Как собран маршрут: вручную (Назначить) или автоматически */
+export type RouteAssembly = 'manual' | 'auto'
+
 export type Route = {
   id: string
   courierId: string
@@ -57,6 +60,8 @@ export type Route = {
   createdAt: number
   status: RouteStatus
   step: RouteStep
+  /** Для назначенных маршрутов: ручное или авто-сборка */
+  assembly?: RouteAssembly
   returningStartedAt?: number
 }
 

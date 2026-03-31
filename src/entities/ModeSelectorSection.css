@@ -1,0 +1,49 @@
+/* Карточка «Маршруты» + режим — sticky, как прежний заголовок колонки */
+.mode-selector-section {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  flex-shrink: 0;
+  padding: 24px 0 0 0px;
+  background: var(--surface-0);
+}
+
+.mode-selector-section__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--surface-0);
+  box-sizing: border-box;
+}
+
+.mode-selector-section__top {
+  display: flex;
+  align-items: center;
+  min-height: 16px;
+}
+
+.mode-selector-section__title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mode-selector-section__title {
+  color: var(--text-1);
+  font: var(--type-text);
+  font-style: normal;
+}
+
+.mode-selector-section__count {
+  flex-shrink: 0;
+  color: var(--text-3);
+  font: var(--type-text);
+  font-style: normal;
+}
+
+.mode-selector-section__selector {
+  width: 100%;
+}

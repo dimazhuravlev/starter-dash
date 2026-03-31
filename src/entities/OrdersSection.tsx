@@ -90,10 +90,14 @@ function CardOrder({
   const [isNewWaitingOrder, setIsNewWaitingOrder] = useState(order.status === 'waiting_cook')
   const slaStatus = getOrderSlaStatus(order, now)
   const { isBehindSchedule } = getOrderRiskStatus(order, now, orderStageMin, routeStageMin)
-  const isAssignedToDraft = Object.values(routes).some(
-    (routeItem) => routeItem.status === 'draft' && routeItem.orderIds.includes(order.id),
+  /** В шаблоне (draft), отправленном или авто-собранном (sent) маршруте — карточка в колонке «Заказы» только с подсветкой, без dnd */
+  const isOrderLockedToRoute = Object.values(routes).some(
+    (routeItem) =>
+      routeItem.orderIds.includes(order.id) &&
+      (routeItem.status === 'draft' || routeItem.status === 'sent'),
   )
-  const isDraggable = order.status !== 'enroute' && order.status !== 'handoff' && !order.routeId && !isAssignedToDraft
+  const isDraggable =
+    order.status !== 'enroute' && order.status !== 'handoff' && !isOrderLockedToRoute
 
   useEffect(() => {
     if (!isNewWaitingOrder) return
@@ -114,7 +118,7 @@ function CardOrder({
         isDraggable ? ' card--draggable' : ''
       }${isDragging ? ' card--dragging' : ''}${
         slaStatus.isOverdue || isBehindSchedule ? ' card--overdue' : ''
-      }${isAssignedToDraft ? ' card--in-draft' : ''}${onFocusOnMap ? ' card--focus-on-map' : ''}${
+      }${isOrderLockedToRoute ? ' card--order-in-route' : ''}${onFocusOnMap ? ' card--focus-on-map' : ''}${
         highlightedFromMap ? ' card--highlighted-from-map' : ''
       }`}
       role={onFocusOnMap ? 'button' : undefined}

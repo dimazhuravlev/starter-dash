@@ -30,7 +30,8 @@ type RouteDraftCardProps = {
   orderStageMin: OrderStageMin
   routeStageMin: RouteStageMin
   highlightedOrderIdFromMap?: string | null
-  onDelete: (routeId: string) => void
+  /** Очистить шаблон или удалить маршрут целиком (если уже есть другой пустой шаблон) */
+  onClearDraftContent: (routeId: string) => void
   onDetachCourier: (routeId: string) => void
   onAttachCourier: (routeId: string, courierId: string) => void
   onDetachOrder: (routeId: string, orderId: string) => void
@@ -58,7 +59,7 @@ export function RouteDraftCard({
   routeStageMin,
   highlightedOrderIdFromMap,
   isJustAppeared,
-  onDelete,
+  onClearDraftContent,
   onDetachCourier,
   onDetachOrder,
   onAttachCourier,
@@ -94,6 +95,8 @@ export function RouteDraftCard({
   const canAttachOrder = route.orderIds.length < 3
   const canSend = route.courierId && route.orderIds.length >= 1 && route.orderIds.length <= 3
   const isFull = route.orderIds.length >= 3
+  /** Пустой шаблон: ещё не выбраны курьер и заказы */
+  const isEmptyTemplate = !route.courierId && route.orderIds.length === 0
 
   const canDropPayload = (payload: DndPayload) => {
     if (payload.kind === 'courier') {
@@ -167,11 +170,9 @@ export function RouteDraftCard({
     }
   }
 
-  const handleDeleteClick = () => {
+  const handleClearTemplateClick = () => {
     if (isExiting) return
-    exitingForSendRef.current = false
-    setIsExiting(true)
-    onExiting?.()
+    onClearDraftContent(route.id)
   }
 
   const handleAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
@@ -184,11 +185,8 @@ export function RouteDraftCard({
       return
     }
     if (event.animationName !== 'route-draft-disappear' || !isExiting) return
-    if (exitingForSendRef.current) {
-      onSendAfterExit?.(route.id)
-    } else {
-      onDelete(route.id)
-    }
+    if (!exitingForSendRef.current) return
+    onSendAfterExit?.(route.id)
   }
 
   const canShowRouteOnMap = route.orderIds.length >= 1
@@ -396,26 +394,28 @@ export function RouteDraftCard({
           </div>
         ) : null}
       </div>
-      <div className="route-draft__footer">
-        <PrimaryButton
-          variant="default"
-          iconStart={doneIcon}
-          disabled={!canSend}
-          onClick={() => onSend(route.id)}
-        >
-          Назначить
-        </PrimaryButton>
-        <Tooltip title="Удалить маршрут">
+      {!isEmptyTemplate ? (
+        <div className="route-draft__footer">
+          <PrimaryButton
+            variant="default"
+            iconStart={doneIcon}
+            disabled={!canSend}
+            onClick={() => onSend(route.id)}
+          >
+            Назначить
+          </PrimaryButton>
+        <Tooltip title="Удалить шаблон">
           <button
             type="button"
             className="route-draft__action route-draft__action--icon"
-            onClick={handleDeleteClick}
-            aria-label="Удалить маршрут"
+            onClick={handleClearTemplateClick}
+            aria-label="Удалить шаблон"
           >
-            <span className="route-draft__action-icon" style={{ ['--icon-src' as string]: `url(${deleteIcon})` }} aria-hidden />
-          </button>
-        </Tooltip>
-      </div>
+              <span className="route-draft__action-icon" style={{ ['--icon-src' as string]: `url(${deleteIcon})` }} aria-hidden />
+            </button>
+          </Tooltip>
+        </div>
+      ) : null}
     </div>
   )
 }

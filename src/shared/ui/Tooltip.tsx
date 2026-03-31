@@ -1,18 +1,33 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import './Tooltip.css'
 
 const TOOLTIP_OFFSET_X = 12
 const TOOLTIP_OFFSET_Y = 12
-const VIEWPORT_MARGIN = 4
+/** Минимальный зазор между тултипом и краем вьюпорта при позиционировании */
+const VIEWPORT_MARGIN = 12
 const SHOW_DELAY_MS = 150
 
 type TooltipProps = {
   children: ReactNode
-  /** Текст тултипа — показывается при ховере. Пустая строка = тултип отключён */
-  title: string
+  /** Текст тултипа — показывается при ховере. Пустая строка = тултип отключён (если нет content) */
+  title?: string
+  /** Разметка тултипа (например несколько абзацев). Имеет приоритет над title для содержимого портала */
+  content?: ReactNode
   /** Обёртка занимает 100% ширины и высоты родителя (для панелей) */
   fill?: boolean
+  /** Смещение левого верхнего угла тултипа от курсора (px). По умолчанию вправо и вниз по 12 */
+  offsetX?: number
+  offsetY?: number
+  /** Доп. классы на портале (например `tooltip--w230` для ширины rich-тултипа) */
+  portalClassName?: string
 }
 
 function clampToViewport(
@@ -29,32 +44,51 @@ function clampToViewport(
   }
 }
 
-export function Tooltip({ children, title, fill }: TooltipProps) {
+export function Tooltip({
+  children,
+  title = '',
+  content,
+  fill,
+  offsetX = TOOLTIP_OFFSET_X,
+  offsetY = TOOLTIP_OFFSET_Y,
+  portalClassName,
+}: TooltipProps) {
   const [visible, setVisible] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
   const tooltipRef = useRef<HTMLSpanElement>(null)
   const showTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const updateCoords = useCallback((clientX: number, clientY: number) => {
-    setCoords({
-      top: clientY + TOOLTIP_OFFSET_Y,
-      left: clientX + TOOLTIP_OFFSET_X,
-    })
-  }, [])
+  const hasTooltip = useMemo(() => Boolean(content) || title !== '', [content, title])
 
-  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
-    if (!title) return
-    updateCoords(e.clientX, e.clientY)
-    showTimeoutRef.current = setTimeout(() => {
-      showTimeoutRef.current = null
-      setVisible(true)
-    }, SHOW_DELAY_MS)
-  }, [updateCoords, title])
+  const updateCoords = useCallback(
+    (clientX: number, clientY: number) => {
+      setCoords({
+        top: clientY + offsetY,
+        left: clientX + offsetX,
+      })
+    },
+    [offsetX, offsetY],
+  )
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!title) return
-    updateCoords(e.clientX, e.clientY)
-  }, [updateCoords, title])
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent) => {
+      if (!hasTooltip) return
+      updateCoords(e.clientX, e.clientY)
+      showTimeoutRef.current = setTimeout(() => {
+        showTimeoutRef.current = null
+        setVisible(true)
+      }, SHOW_DELAY_MS)
+    },
+    [updateCoords, hasTooltip],
+  )
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (!hasTooltip) return
+      updateCoords(e.clientX, e.clientY)
+    },
+    [updateCoords, hasTooltip],
+  )
 
   const handleMouseLeave = useCallback(() => {
     if (showTimeoutRef.current) {
@@ -89,17 +123,18 @@ export function Tooltip({ children, title, fill }: TooltipProps) {
         {children}
       </span>
       {visible &&
+        hasTooltip &&
         createPortal(
           <span
             ref={tooltipRef}
-            className="tooltip tooltip--portal"
+            className={`tooltip tooltip--portal${content ? ' tooltip--rich' : ''}${portalClassName ? ` ${portalClassName}` : ''}`}
             role="tooltip"
             style={{
               top: coords.top,
               left: coords.left,
             }}
           >
-            {title}
+            {content ?? title}
           </span>,
           document.body,
         )}

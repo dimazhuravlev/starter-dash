@@ -41,7 +41,11 @@
   font: var(--type-title);
   font-style: normal;
   text-transform: none;
-  cursor: default;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text-1);
 }
 
 .tab--active {

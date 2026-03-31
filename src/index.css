@@ -13,6 +13,7 @@
 @import './entities/RouteDraftCard.css';
 @import './entities/RouteDeliveryCard.css';
 @import './screens/DebugPanelScreen.css';
+@import './screens/RestaurantsScreen.css';
 
 /* ========== Design tokens: colors & typography ========== */
 
@@ -40,6 +41,7 @@
   /* Accent raw tokens — dark theme */
   --green-600: #03ab00;
   --green-20: rgba(3,171,0,.20);
+  --accent-600: #B21AFF;
   --red-500: #E8306E;
   --red-900: #570F27;
   --red-20: rgba(232,48,110,.20);
@@ -62,6 +64,7 @@
   /* Accent raw tokens — light theme */
   --green-600: #039b00;
   --green-20: rgba(2,138,0,.15);
+  --accent-600: #B21AFF;
   --red-500: #c9285c;
   --red-900: #fbc5d7;
   --red-20: rgba(201,40,92,.15);
@@ -92,11 +95,17 @@
 
   --overlay-hover: var(--mono-overlay);
 
-  --accent: var(--green-600);
+  --success: var(--green-600);
+  --success-surface: var(--green-20);
+  --accent: var(--accent-600);
   --danger: var(--red-500);
-  --accent-surface: var(--green-20);
   --danger-surface-strong: var(--red-900);
   --danger-surface: var(--red-20);
+
+  /* Фокус с клавиатуры — кольцо и caret в полях ввода */
+  --focus-ring: var(--accent);
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
 }
 
 /* Base styles using tokens */
@@ -176,12 +185,22 @@ body {
 .app-error-fallback__reload {
   font: var(--type-text);
   padding: 10px 20px;
-  background: var(--accent);
-  color: var(--text-on-accent);
+  background: var(--success);
+  color: var(--text-1);
   border: none;
   border-radius: 8px;
   cursor: pointer;
 }
 .app-error-fallback__reload:hover {
   opacity: 0.9;
+}
+
+/* Глобальное кольцо фокуса (:focus-visible) */
+:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
 }

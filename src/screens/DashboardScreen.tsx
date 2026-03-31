@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CourierMarkerItem } from '../components/MapboxMap'
 import { flushSync } from 'react-dom'
 import { type Courier, type Order, type Route, RESTAURANT_COORDS } from '../model/types'
+import { routeHasUnreadyKitchenOrders } from '../model/routeBuckets'
 import { DashboardLayout } from './DashboardLayout'
 import { DashboardLeftPanel } from './DashboardLeftPanel'
 import { DashboardMapColumn } from './DashboardMapColumn'
@@ -12,11 +13,14 @@ import { useDashboardResize } from './useDashboardResize'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 
 type DashboardScreenProps = {
+  routeMode: 'auto' | 'manual'
+  onRouteModeChange: (mode: 'auto' | 'manual') => void
   theme: 'dark' | 'light'
   orders: Record<string, Order>
   couriers: Record<string, Courier>
   routes: Record<string, Route>
   createRouteDraft: () => string
+  resetRouteDraft: (routeId: string) => void
   deleteRouteDraft: (routeId: string) => void
   detachCourierFromRoute: (routeId: string) => void
   attachCourierToRoute: (routeId: string, courierId: string) => void
@@ -31,11 +35,14 @@ type DashboardScreenProps = {
 }
 
 export function DashboardScreen({
+  routeMode,
+  onRouteModeChange,
   theme,
   orders,
   couriers,
   routes,
   createRouteDraft,
+  resetRouteDraft,
   deleteRouteDraft,
   detachCourierFromRoute,
   attachCourierToRoute,
@@ -65,11 +72,54 @@ export function DashboardScreen({
     resizerJustInteractedRef,
   } = resize
 
-  const draftRoutes = useMemo(() => routeList.filter((route) => route.status === 'draft'), [routeList])
+  const draftRoutes = useMemo(() => {
+    if (routeMode === 'auto') return []
+    const drafts = routeList.filter((route) => route.status === 'draft')
+    const empty = drafts.filter((r) => !r.courierId && r.orderIds.length === 0)
+    const filled = drafts.filter((r) => r.courierId || r.orderIds.length > 0)
+    empty.sort((a, b) => a.createdAt - b.createdAt)
+    filled.sort((a, b) => a.createdAt - b.createdAt)
+    return [...empty, ...filled]
+  }, [routeList, routeMode])
   const sentRoutes = useMemo(() => routeList.filter((route) => route.status === 'sent'), [routeList])
-  const assignedRoutes = useMemo(
-    () => sentRoutes.filter((route) => route.step.kind === 'pickup'),
-    [sentRoutes],
+  /** Ручной режим: авто-сборка на pickup с неготовыми заказами — в «Собрать маршрут» (карточка доставки) */
+  const sentPickupAwaitingKitchen = useMemo(
+    () =>
+      [...sentRoutes]
+        .filter(
+          (route) =>
+            route.step.kind === 'pickup' &&
+            route.assembly === 'auto' &&
+            routeHasUnreadyKitchenOrders(route, orders),
+        )
+        .sort((a, b) => a.createdAt - b.createdAt),
+    [sentRoutes, orders],
+  )
+  /**
+   * Ручной режим: «Назначенные» — все sent pickup, кроме авто-маршрутов, которые ещё ждут кухню
+   * (те показываются в «Собрать маршрут»). После auto→manual авто-маршрут «в получении»
+   * остаётся с assembly: 'auto' и тоже попадает сюда.
+   */
+  const manualAssignedRoutes = useMemo(
+    () =>
+      [...sentRoutes]
+        .filter((route) => {
+          if (route.step.kind !== 'pickup') return false
+          if (route.assembly === 'auto' && routeHasUnreadyKitchenOrders(route, orders)) {
+            return false
+          }
+          return true
+        })
+        .sort((a, b) => a.createdAt - b.createdAt),
+    [sentRoutes, orders],
+  )
+  /** Авторежим: только назначенные pickup (шаблонов в UI нет) */
+  const autoAssembledRoutes = useMemo(
+    () =>
+      [...routeList]
+        .filter((route) => route.status === 'sent' && route.step.kind === 'pickup')
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [routeList],
   )
   const clientRoutes = useMemo(
     () => sentRoutes.filter((route) => route.step.kind !== 'pickup' && route.step.kind !== 'returning'),
@@ -81,6 +131,7 @@ export function DashboardScreen({
     routes,
     orders,
     draftRoutes,
+    routeMode,
     createRouteDraft,
     attachOrderToRoute,
     resizerJustInteractedRef,
@@ -112,9 +163,15 @@ export function DashboardScreen({
   const [recentlyMovedToActiveRouteIds, setRecentlyMovedToActiveRouteIds] = useState<string[]>([])
   const [routeFlashTrigger, setRouteFlashTrigger] = useState<number | null>(null)
   const [nextRevertedDraftId, setNextRevertedDraftId] = useState<string | null>(null)
+  /** Одноразовый «металлический» блик для карточек, впервые попавших в «Собранные автоматически» уже в авторежиме */
+  const [autoTemplateShimmerRouteIds, setAutoTemplateShimmerRouteIds] = useState<string[]>([])
   const prevClientRouteIdsRef = useRef<Set<string>>(new Set())
   const didInitClientRoutesRef = useRef(false)
   const mountedRef = useRef(true)
+  const isFirstRoutesLayoutRef = useRef(true)
+  const prevRouteModeForShimmerRef = useRef(routeMode)
+  const suppressAutoTemplateShimmerIdsRef = useRef<Set<string>>(new Set())
+  const prevAutoAssembledIdsRef = useRef<Set<string>>(new Set())
   useLayoutEffect(() => {
     return () => {
       mountedRef.current = false
@@ -207,9 +264,68 @@ export function DashboardScreen({
     return () => window.clearTimeout(t)
   }, [clientRoutes])
 
-  const handleDeleteDraft = useCallback((routeId: string) => {
-    deleteRouteDraft(routeId)
-  }, [deleteRouteDraft])
+  const handleAutoTemplateShimmerEnd = useCallback((routeId: string) => {
+    setAutoTemplateShimmerRouteIds((prev) => prev.filter((id) => id !== routeId))
+  }, [])
+
+  useLayoutEffect(() => {
+    if (routeMode !== 'auto') {
+      prevAutoAssembledIdsRef.current = new Set()
+      prevRouteModeForShimmerRef.current = routeMode
+      if (isFirstRoutesLayoutRef.current) {
+        isFirstRoutesLayoutRef.current = false
+      }
+      return
+    }
+    const currentIds = new Set(autoAssembledRoutes.map((r) => r.id))
+    const suppress = suppressAutoTemplateShimmerIdsRef.current
+    if (isFirstRoutesLayoutRef.current) {
+      isFirstRoutesLayoutRef.current = false
+      for (const id of currentIds) {
+        suppress.add(id)
+      }
+      prevAutoAssembledIdsRef.current = new Set(currentIds)
+      prevRouteModeForShimmerRef.current = routeMode
+      return
+    }
+    if (prevRouteModeForShimmerRef.current !== 'auto') {
+      for (const id of currentIds) {
+        suppress.add(id)
+      }
+    }
+    prevRouteModeForShimmerRef.current = routeMode
+    const prevIds = prevAutoAssembledIdsRef.current
+    const newcomers = [...currentIds].filter((id) => !prevIds.has(id))
+    prevAutoAssembledIdsRef.current = new Set(currentIds)
+    const toShimmer = newcomers.filter((id) => !suppress.has(id))
+    if (toShimmer.length === 0) return
+    setAutoTemplateShimmerRouteIds((prev) => {
+      const next = new Set(prev)
+      for (const id of toShimmer) {
+        next.add(id)
+      }
+      return [...next]
+    })
+  }, [routeMode, autoAssembledRoutes])
+
+  /** Кнопка удаления на заполненном шаблоне: если уже есть пустой шаблон — маршрут удаляется целиком, иначе только сброс содержимого. */
+  const handleDraftTemplateRemove = useCallback(
+    (routeId: string) => {
+      const route = routes[routeId]
+      if (!route || route.status !== 'draft') return
+      const isEmpty = !route.courierId && route.orderIds.length === 0
+      const hasOtherEmpty = Object.values(routes).some(
+        (r) =>
+          r.id !== routeId && r.status === 'draft' && !r.courierId && r.orderIds.length === 0,
+      )
+      if (!isEmpty && hasOtherEmpty) {
+        deleteRouteDraft(routeId)
+      } else {
+        resetRouteDraft(routeId)
+      }
+    },
+    [routes, deleteRouteDraft, resetRouteDraft],
+  )
 
   return (
     <DashboardLayout
@@ -239,6 +355,8 @@ export function DashboardScreen({
         routeFlashTrigger={routeFlashTrigger}
       />
       <DashboardLeftPanel
+        routeMode={routeMode}
+        onRouteModeChange={onRouteModeChange}
         leftWrapperRef={leftWrapperRef}
         courierList={courierList}
         unassignedOrdersCount={ordersVisibleInColumn.length}
@@ -256,17 +374,18 @@ export function DashboardScreen({
         onOrderCardClick={handleOrderCardClick}
         focusMapOnRoute={focusMapOnRoute}
         onCourierCardClick={handleCourierCardClick}
-        createRouteDraft={createRouteDraft}
         draftRoutes={draftRoutes}
+        sentPickupAwaitingKitchen={sentPickupAwaitingKitchen}
         draftSectionExiting={draftSectionExiting}
         setDraftSectionExiting={setDraftSectionExiting}
-        assignedRoutes={assignedRoutes}
+        manualAssignedRoutes={manualAssignedRoutes}
+        autoAssembledRoutes={autoAssembledRoutes}
         recentlyRevertedToDraftRouteIds={recentlyRevertedToDraftRouteIds}
         nextRevertedDraftId={nextRevertedDraftId}
         recentlySentRouteIds={recentlySentRouteIds}
         pendingSendRouteId={pendingSendRouteId}
         pendingRevertRouteId={pendingRevertRouteId}
-        onDeleteDraft={handleDeleteDraft}
+        onResetDraftTemplate={handleDraftTemplateRemove}
         detachCourierFromRoute={detachCourierFromRoute}
         detachOrderFromRoute={detachOrderFromRoute}
         attachCourierToRoute={attachCourierToRoute}
@@ -278,6 +397,8 @@ export function DashboardScreen({
         onRevertAfterExit={handleRevertAfterExit}
         clientRoutes={clientRoutes}
         recentlyMovedToActiveRouteIds={recentlyMovedToActiveRouteIds}
+        autoTemplateShimmerRouteIds={autoTemplateShimmerRouteIds}
+        onAutoTemplateShimmerEnd={handleAutoTemplateShimmerEnd}
       />
 
       <DashboardMapColumn

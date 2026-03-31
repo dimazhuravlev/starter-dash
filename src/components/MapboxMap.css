@@ -277,7 +277,7 @@
   align-items: center;
   gap: 8px;
   border-radius: 16px;
-  background: var(--accent);
+  background: var(--success);
   color: var(--text-1);
   text-align: center;
   font: var(--type-subtitle);
@@ -299,7 +299,7 @@
 /* Доставленный заказ в маршруте: капсула зелёная (opacity 1), иконка галочки белая */
 .mapbox-order-marker__pill--done {
   justify-content: center;
-  background: var(--accent);
+  background: var(--success);
   color: var(--text-1);
 }
 
@@ -337,7 +337,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: var(--accent);
+  background-color: var(--success);
   border: 2px solid var(--text-1);
   box-sizing: border-box;
   display: flex;
@@ -457,7 +457,7 @@
   background: var(--fill-3);
 }
 
-.mapbox-marker-popup__btn:focus {
+.mapbox-marker-popup__btn:focus:not(:focus-visible) {
   outline: none;
 }
 

@@ -1,4 +1,4 @@
-type TabItem = { label: string; count: number }
+type TabItem = { label: string }
 
 type AppSubheaderProps = {
   tabs: TabItem[]
@@ -10,14 +10,14 @@ export function AppSubheader({ tabs, activeIndex, onTabChange }: AppSubheaderPro
   return (
     <div className="app-subheader">
       <div className="app-subheader__tabs">
-        {tabs.map(({ label, count }, index) => (
+        {tabs.map(({ label }, index) => (
           <button
-            key={`${label}-${count}`}
+            key={label}
             type="button"
             className={`app-subheader__tab${index === activeIndex ? ' app-subheader__tab--active' : ''}`}
             onClick={() => onTabChange(index)}
           >
-            <span className="app-subheader__tab-label">{label}, {count}</span>
+            <span className="app-subheader__tab-label">{label}</span>
           </button>
         ))}
       </div>

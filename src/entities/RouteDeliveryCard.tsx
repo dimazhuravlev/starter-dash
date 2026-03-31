@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { formatAddress } from '../shared/formatAddress'
 import { type Courier, type Order, type Route, type RouteStepKind } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
@@ -36,6 +36,11 @@ export function RouteDeliveryCard({
   onRevertAfterExit,
   pendingRevertRouteId,
   onFocusOnMap,
+  /** false в авторежиме — кнопка «Изменить маршрут» скрыта */
+  canEditRoute = true,
+  /** Одноразовый блик для новых карточек в «Собранные автоматически» (только созданные уже в авторежиме) */
+  playAutoTemplateShimmer = false,
+  onAutoTemplateShimmerEnd,
 }: {
   route: Route
   courier?: Courier
@@ -46,6 +51,9 @@ export function RouteDeliveryCard({
   highlightedOrderIdFromMap?: string | null
   /** Карточка только что появилась в «Назначенные» после нажатия «Назначить» — проигрывается анимация появления */
   isJustAppeared?: boolean
+  canEditRoute?: boolean
+  playAutoTemplateShimmer?: boolean
+  onAutoTemplateShimmerEnd?: (routeId: string) => void
   onRevertToDraft?: (routeId: string) => void
   /** Вызывается после анимации скрытия при нажатии «Редактировать» — затем вызывается revertRouteToDraft */
   onRevertAfterExit?: (routeId: string) => void
@@ -56,9 +64,30 @@ export function RouteDeliveryCard({
   const [isExiting, setIsExiting] = useState(false)
   const [hasPlayedAppearAnimation, setHasPlayedAppearAnimation] = useState(false)
   const revertAfterExitCalledRef = useRef(false)
+  /** Блик с появления карточки; контент через 700ms; затем 500ms reveal (opacity + blur) */
+  const [autoIntroPhase, setAutoIntroPhase] = useState<null | 'shimmer' | 'content'>(null)
+
+  const AUTO_INTRO_CONTENT_AT_MS = 700
+  const AUTO_INTRO_CONTENT_MS = 500
+
+  useLayoutEffect(() => {
+    if (!playAutoTemplateShimmer) {
+      setAutoIntroPhase(null)
+      return
+    }
+    setAutoIntroPhase('shimmer')
+    const tContent = window.setTimeout(() => setAutoIntroPhase('content'), AUTO_INTRO_CONTENT_AT_MS)
+    const tEnd = window.setTimeout(() => {
+      onAutoTemplateShimmerEnd?.(route.id)
+    }, AUTO_INTRO_CONTENT_AT_MS + AUTO_INTRO_CONTENT_MS)
+    return () => {
+      window.clearTimeout(tContent)
+      window.clearTimeout(tEnd)
+    }
+  }, [playAutoTemplateShimmer, route.id, onAutoTemplateShimmerEnd])
 
   useEffect(() => {
-    if (pendingRevertRouteId !== route.id) return
+    if (!canEditRoute || pendingRevertRouteId !== route.id) return
     setIsExiting(true)
     revertAfterExitCalledRef.current = false
     const t = window.setTimeout(() => {
@@ -67,7 +96,7 @@ export function RouteDeliveryCard({
       onRevertAfterExit?.(route.id)
     }, 350)
     return () => window.clearTimeout(t)
-  }, [pendingRevertRouteId, route.id, onRevertAfterExit])
+  }, [canEditRoute, pendingRevertRouteId, route.id, onRevertAfterExit])
 
   const handleAnimationEnd = (event: React.AnimationEvent<HTMLDivElement>) => {
     if (event.animationName === 'delivery-card-enter') {
@@ -139,13 +168,21 @@ export function RouteDeliveryCard({
           ? formatElapsedLabel(routeStepLabel[route.step.kind], route.returningStartedAt)
           : null
         : null
-  const showEditButton = onRevertToDraft && route.step.kind === 'pickup'
+  const showEditButton = canEditRoute && onRevertToDraft && route.step.kind === 'pickup'
+
+  const autoIntroEffectivePhase = playAutoTemplateShimmer ? (autoIntroPhase ?? 'shimmer') : null
+  const autoIntroClass = autoIntroEffectivePhase
+    ? ` card--delivery-auto-intro${autoIntroEffectivePhase === 'shimmer' ? ' card--delivery-auto-shimmer' : ''}${autoIntroEffectivePhase === 'content' ? ' card--delivery-auto-intro--phase-content' : ''}`
+    : ''
+
+  const introBlocksPointer = Boolean(playAutoTemplateShimmer)
 
   return (
     <div
-      className={`card card--delivery${onFocusOnMap ? ' card--focus-on-map' : ''}${isJustAppeared && !hasPlayedAppearAnimation ? ' card--delivery-appearing' : ''}${isExiting ? ' card--delivery-exiting' : ''}`}
+      className={`card card--delivery${onFocusOnMap ? ' card--focus-on-map' : ''}${isJustAppeared && !hasPlayedAppearAnimation ? ' card--delivery-appearing' : ''}${isExiting ? ' card--delivery-exiting' : ''}${autoIntroClass}`}
       role={onFocusOnMap ? 'button' : undefined}
-      tabIndex={onFocusOnMap ? 0 : undefined}
+      tabIndex={onFocusOnMap && !playAutoTemplateShimmer ? 0 : undefined}
+      style={introBlocksPointer ? { pointerEvents: 'none' } : undefined}
       onClick={onFocusOnMap ? handleCardClick : undefined}
       onKeyDown={onFocusOnMap ? handleCardKeyDown : undefined}
       onAnimationEnd={handleAnimationEnd}
@@ -171,6 +208,7 @@ export function RouteDeliveryCard({
           </Tooltip>
         </div>
       ) : null}
+      <div className="delivery__auto-intro-inner">
       <div className="card__row">
         {courier ? (
           <span
@@ -259,7 +297,7 @@ export function RouteDeliveryCard({
                 >
                   {order?.status === 'delivered' ? (
                     <svg width={16} height={16} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="sla-pill__done-icon" aria-hidden>
-                      <path fillRule="evenodd" clipRule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill={getColorToken('--accent')} />
+                      <path fillRule="evenodd" clipRule="evenodd" d="M11.83 4.49946C11.4433 4.21746 10.9012 4.30237 10.6192 4.68911L7.1748 9.41286L5.43878 7.42883C5.1236 7.06862 4.57609 7.03212 4.21589 7.3473C3.85568 7.66248 3.81918 8.20999 4.13436 8.57019L6.58419 11.37C6.75762 11.5682 7.01176 11.6768 7.27486 11.6651C7.53797 11.6534 7.78148 11.5227 7.93665 11.3099L12.0197 5.7103C12.3017 5.32356 12.2168 4.78145 11.83 4.49946L11.5944 4.82264L11.83 4.49946Z" fill={getColorToken('--success')} />
                     </svg>
                   ) : (
                     slaStatus.label
@@ -270,6 +308,7 @@ export function RouteDeliveryCard({
             </Fragment>
           )
         })}
+      </div>
       </div>
     </div>
   )

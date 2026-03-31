@@ -415,8 +415,8 @@ export function MapboxMap({
           data: emptyRouteGeoJSON(),
         })
       }
-      const accent = getColorToken('--accent') || '#03ab00'
-      /** Светлый акцент в середине линии (одинаково читаемо в светлой и тёмной теме) */
+      const routeLineColor = getColorToken('--success') || '#03ab00'
+      /** Светлый зелёный в середине градиента линии маршрута */
       const lineHighlight = '#B8FFB7'
       if (!map.getLayer('route-line-glow')) {
         map.addLayer({
@@ -425,7 +425,7 @@ export function MapboxMap({
           source: 'route',
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': accent,
+            'line-color': routeLineColor,
             'line-width': 14,
             'line-blur': 12,
             'line-opacity': 0,
@@ -445,15 +445,15 @@ export function MapboxMap({
               ['linear'],
               ['%', ['+', ['-', ['line-progress'], 0], 1], 1],
               0,
-              accent,
+              routeLineColor,
               0.35,
-              accent,
+              routeLineColor,
               0.5,
               lineHighlight,
               0.65,
-              accent,
+              routeLineColor,
               1,
-              accent,
+              routeLineColor,
             ],
             'line-width': 3,
             'line-dasharray': [1.5, 2],
@@ -913,7 +913,8 @@ export function MapboxMap({
   useEffect(() => {
     if (!mapRef.current || !mapReady || !mapRef.current.getLayer('route-line')) return
     const map = mapRef.current
-    const accent = getColorToken('--accent') || '#03ab00'
+    const routeLineColor = getColorToken('--success') || '#03ab00'
+    const lineHighlight = '#B8FFB7'
     const startTime = performance.now()
     let rafId: number
     const tick = () => {
@@ -925,15 +926,15 @@ export function MapboxMap({
           ['linear'],
           ['%', ['+', ['-', ['line-progress'], phase], 1], 1],
           0,
-          accent,
+          routeLineColor,
           0.45,
-          accent,
+          routeLineColor,
           0.5,
-          '#B8FFB7',
+          lineHighlight,
           0.55,
-          accent,
+          routeLineColor,
           1,
-          accent,
+          routeLineColor,
         ])
       } catch {
         return

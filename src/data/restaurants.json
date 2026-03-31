@@ -1,0 +1,42 @@
+[
+  {
+    "id": "pervomaysky",
+    "name": "Первомайский",
+    "address": "пер. Первомайский, 8, Санкт-Петербург",
+    "pickupMin": 3,
+    "handoffMin": 3,
+    "routeMode": "auto"
+  },
+  {
+    "id": "nekrasova",
+    "name": "Некрасова",
+    "address": "ул. Некрасова, 50, Санкт-Петербург",
+    "pickupMin": 5,
+    "handoffMin": 3,
+    "routeMode": "auto"
+  },
+  {
+    "id": "zagorodny",
+    "name": "Загородный",
+    "address": "Загородный пр, 32, Санкт-Петербург",
+    "pickupMin": 3,
+    "handoffMin": 3,
+    "routeMode": "auto"
+  },
+  {
+    "id": "krasnoznamennaya",
+    "name": "Краснознаменная",
+    "address": "ул. Краснознаменная 152А, Санкт-Петербург",
+    "pickupMin": 4,
+    "handoffMin": 3,
+    "routeMode": "auto"
+  },
+  {
+    "id": "pirogova",
+    "name": "Пирогова",
+    "address": "пр. Пирогова, 80к2, Санкт-Петербург",
+    "pickupMin": 3,
+    "handoffMin": 3,
+    "routeMode": "auto"
+  }
+]

@@ -28,7 +28,7 @@
   cursor: pointer;
 }
 
-.delivery__edit-btn:focus {
+.delivery__edit-btn:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -49,8 +49,8 @@
 
 /* В завершённом заказе в карточке Доставка капсула Done всегда зелёная */
 .delivery__order--delivered .sla-pill.sla-pill--done {
-  background: var(--accent-surface);
-  color: var(--accent);
+  background: var(--success-surface);
+  color: var(--success);
 }
 
 /* Лейбл «Получение» и лейблы статусов «В пути», «Выдача» — как в карточках курьера и заказа */
@@ -142,4 +142,107 @@
 .delivery__order--delivered .card__order-cost {
   text-decoration: line-through;
   opacity: 0.4;
+}
+
+/* Обёртка контента — для поэтапного intro авто-маршрута */
+.delivery__auto-intro-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * Авто-карточка: фрейм 300ms параллельно с бликом; контент с 700ms, reveal 500ms (таймеры в TS).
+ * Фон: с появления — #2B0033; 300ms удержание; затем 400ms к серому (всего 700ms).
+ */
+.card--delivery.card--delivery-auto-intro {
+  animation:
+    delivery-auto-intro-frame 300ms ease-out forwards,
+    delivery-auto-intro-bg 700ms ease-out both;
+}
+
+/* Пауза 300ms: 300/700 ≈ 42.857% — затем переход к серому 400ms */
+@keyframes delivery-auto-intro-bg {
+  0%,
+  42.857% {
+    background-color: #2b0033;
+  }
+
+  100% {
+    background-color: var(--surface-1);
+  }
+}
+
+@keyframes delivery-auto-intro-frame {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.card--delivery.card--delivery-auto-intro .delivery__auto-intro-inner {
+  position: relative;
+  z-index: 0;
+  opacity: 0;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.card--delivery.card--delivery-auto-intro.card--delivery-auto-intro--phase-content .delivery__auto-intro-inner {
+  z-index: 1;
+  animation: delivery-auto-intro-content 500ms ease-out forwards;
+}
+
+@keyframes delivery-auto-intro-content {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/*
+ * Блик (фаза shimmer). clip-path вместо overflow:hidden — см. комментарии в истории про WebKit.
+ */
+.card--delivery.card--delivery-auto-shimmer {
+  border-radius: inherit;
+  clip-path: inset(0 round 12px);
+}
+
+.card--delivery.card--delivery-auto-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 450%;
+  height: 600%;
+  pointer-events: none;
+  z-index: 2;
+  transform-origin: center center;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    transparent 34%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 47%,
+    color-mix(in srgb, var(--accent) 22%, transparent) 50%,
+    color-mix(in srgb, var(--accent) 12%, transparent) 53%,
+    transparent 66%,
+    transparent 100%
+  );
+  transform: translate(-50%, -50%) rotate(-30deg) translateX(-68%);
+  animation: route-delivery-shimmer 1.5s ease-out forwards;
+}
+
+@keyframes route-delivery-shimmer {
+  to {
+    transform: translate(-50%, -50%) rotate(-30deg) translateX(68%);
+  }
 }

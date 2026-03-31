@@ -78,7 +78,7 @@
 .route-draft__orders .route-draft__placeholder--empty {
   margin-top: 6px;
   min-height: 36px;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1.5px dashed var(--stroke-3);
   box-sizing: border-box;
   transition: border-color 300ms ease;
@@ -285,7 +285,7 @@
   border-radius: 0;
 }
 
-.route-draft__remove--small:focus {
+.route-draft__remove--small:focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -359,7 +359,7 @@
   background: transparent;
 }
 
-.route-draft__action--add:focus {
+.route-draft__action--add:focus:not(:focus-visible) {
   outline: none;
 }
 

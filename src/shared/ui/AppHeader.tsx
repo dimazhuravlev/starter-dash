@@ -5,19 +5,19 @@ import { Tooltip } from './Tooltip'
 
 type AppHeaderProps = {
   tabItems: string[]
+  activeTab: number
   isMenuOpen: boolean
   onMenuToggle: () => void
-  onTabClick: () => void
+  onTabClick: (index: number) => void
   isDebug: boolean
   onDebugClick: () => void
   theme: 'dark' | 'light'
   onThemeToggle: () => void
-  routeMode: 'manual' | 'auto'
-  onRouteModeChange: (mode: 'manual' | 'auto') => void
 }
 
 export function AppHeader({
   tabItems,
+  activeTab,
   isMenuOpen,
   onMenuToggle,
   onTabClick,
@@ -25,8 +25,6 @@ export function AppHeader({
   onDebugClick,
   theme,
   onThemeToggle,
-  routeMode,
-  onRouteModeChange,
 }: AppHeaderProps) {
   return (
     <header className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
@@ -44,34 +42,14 @@ export function AppHeader({
           <button
             key={label}
             type="button"
-            className={index === 0 ? 'tab tab--active' : 'tab'}
-            onClick={onTabClick}
+            className={index === activeTab ? 'tab tab--active' : 'tab'}
+            onClick={() => onTabClick(index)}
           >
             {label}
           </button>
         ))}
       </div>
       <div className="app-header__right">
-        <div className="app-header__mode-selector" role="group" aria-label="Режим формирования маршрутов">
-          <button
-            type="button"
-            className={`route-draft__action app-header__user-btn${routeMode === 'manual' ? ' app-header__user-btn--active' : ''}`}
-            onClick={() => onRouteModeChange('manual')}
-            aria-pressed={routeMode === 'manual'}
-            aria-label="Ручной режим"
-          >
-            Ручной
-          </button>
-          <button
-            type="button"
-            className={`route-draft__action app-header__user-btn${routeMode === 'auto' ? ' app-header__user-btn--active' : ''}`}
-            onClick={() => onRouteModeChange('auto')}
-            aria-pressed={routeMode === 'auto'}
-            aria-label="Автоматический режим"
-          >
-            Авто
-          </button>
-        </div>
         <Tooltip title="Настройки">
           <button type="button" className="route-draft__action route-draft__action--icon" aria-label="Настройки">
             <span className="app-header__icon" style={{ ['--icon-src' as string]: `url(${settingsIcon})` }} aria-hidden />

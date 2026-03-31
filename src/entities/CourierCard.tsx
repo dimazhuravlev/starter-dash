@@ -105,7 +105,7 @@ export function CourierCard({
     <div
       className={`card card--courier${isDraggable ? ' card--draggable' : ''}${
         isDragging ? ' card--dragging' : ''
-      }${isAssignedToDraft ? ' card--in-draft' : ''}${onFocusOnMap ? ' card--focus-on-map' : ''}${
+      }${onFocusOnMap ? ' card--focus-on-map' : ''}${
         highlightedFromMap ? ' card--highlighted-from-map' : ''
       }`}
       role={onFocusOnMap ? 'button' : undefined}

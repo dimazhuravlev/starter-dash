@@ -1,16 +1,17 @@
 import { type Courier, type Order, type Route } from '../model/types'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
-import plusIcon from '../assets/Plus.svg'
-import { Tooltip } from '../shared/ui/Tooltip'
+import { ModeSelectorSection } from './ModeSelectorSection'
 import { RouteDeliveryCard } from './RouteDeliveryCard'
 import { RouteDraftCard } from './RouteDraftCard'
 
 export type RoutesColumnProps = {
-  createRouteDraft: () => void
+  routeMode: 'auto' | 'manual'
+  onRouteModeChange: (mode: 'auto' | 'manual') => void
   draftRoutes: Route[]
+  /** Отправленные pickup, пока заказы готовятся — в «Собрать маршрут» */
+  sentPickupAwaitingKitchen: Route[]
   draftSectionExiting: boolean
   setDraftSectionExiting: (value: boolean) => void
-  assignedRoutes: Route[]
   courierList: Courier[]
   couriers: Record<string, Courier>
   orders: Record<string, Order>
@@ -24,7 +25,7 @@ export type RoutesColumnProps = {
   recentlySentRouteIds: string[]
   pendingSendRouteId: string | null
   pendingRevertRouteId: string | null
-  onDeleteDraft: (routeId: string) => void
+  onResetDraftTemplate: (routeId: string) => void
   detachCourierFromRoute: (routeId: string) => void
   detachOrderFromRoute: (routeId: string, orderId: string) => void
   attachCourierToRoute: (routeId: string, courierId: string) => void
@@ -35,14 +36,26 @@ export type RoutesColumnProps = {
   onSendAfterExit: (routeId: string) => void
   onRevertClick: (routeId: string) => void
   onRevertAfterExit: (routeId: string) => void
+  /** Ручной режим: после «Назначить» (ручная сборка, pickup) */
+  manualAssignedRoutes: Route[]
+  /** Авторежим: только pickup (без шаблонов-черновиков) */
+  autoAssembledRoutes: Route[]
+  /** Одноразовый металлический блик на карточках авторежима */
+  autoTemplateShimmerRouteIds: string[]
+  onAutoTemplateShimmerEnd: (routeId: string) => void
 }
 
 export function RoutesColumn({
-  createRouteDraft,
+  routeMode,
+  onRouteModeChange,
   draftRoutes,
+  sentPickupAwaitingKitchen,
   draftSectionExiting,
   setDraftSectionExiting,
-  assignedRoutes,
+  manualAssignedRoutes,
+  autoAssembledRoutes,
+  autoTemplateShimmerRouteIds,
+  onAutoTemplateShimmerEnd,
   courierList,
   couriers,
   orders,
@@ -56,7 +69,7 @@ export function RoutesColumn({
   recentlySentRouteIds,
   pendingSendRouteId,
   pendingRevertRouteId,
-  onDeleteDraft,
+  onResetDraftTemplate,
   detachCourierFromRoute,
   detachOrderFromRoute,
   attachCourierToRoute,
@@ -68,89 +81,103 @@ export function RoutesColumn({
   onRevertClick,
   onRevertAfterExit,
 }: RoutesColumnProps) {
+  const routesHeaderCount =
+    routeMode === 'manual' ? manualAssignedRoutes.length : autoAssembledRoutes.length
+  const manualTemplateCardCount = draftRoutes.length + sentPickupAwaitingKitchen.length
+
+  const deliveryCardProps = (route: Route, showRevert: boolean) => ({
+    route,
+    courier: couriers[route.courierId],
+    orders,
+    now,
+    orderStageMin,
+    routeStageMin,
+    highlightedOrderIdFromMap,
+    isJustAppeared: recentlySentRouteIds.includes(route.id),
+    canEditRoute: showRevert,
+    onRevertToDraft: showRevert ? onRevertClick : undefined,
+    onRevertAfterExit: showRevert ? onRevertAfterExit : undefined,
+    pendingRevertRouteId: showRevert ? pendingRevertRouteId : undefined,
+    onFocusOnMap: focusMapOnRoute,
+    playAutoTemplateShimmer: !showRevert && autoTemplateShimmerRouteIds.includes(route.id),
+    onAutoTemplateShimmerEnd: !showRevert ? onAutoTemplateShimmerEnd : undefined,
+  })
+
+  const draftCardProps = (route: Route, templateCount: number) => ({
+    route,
+    couriers: courierList,
+    orders,
+    now,
+    orderStageMin,
+    routeStageMin,
+    highlightedOrderIdFromMap,
+    isJustAppeared: recentlyRevertedToDraftRouteIds.includes(route.id) || nextRevertedDraftId === route.id,
+    onClearDraftContent: onResetDraftTemplate,
+    onDetachCourier: detachCourierFromRoute,
+    onAttachCourier: attachCourierToRoute,
+    onDetachOrder: detachOrderFromRoute,
+    onAttachOrder: (rid: string, oid: string) => {
+      attachOrderToRoute(rid, oid)
+      focusMapOnRoute(rid)
+    },
+    onReorderOrders: reorderRouteOrders,
+    onSend: onSendRouteClick,
+    onSendAfterExit: onSendAfterExit,
+    pendingSendRouteId,
+    onFocusOnMap: focusMapOnRoute,
+    onExiting: templateCount === 1 ? () => setDraftSectionExiting(true) : undefined,
+  })
+
   return (
     <section className="dashboard__column">
-      <button
-        type="button"
-        className="column__title column__title--with-action column__title--button"
-        onClick={createRouteDraft}
-        aria-label="Новый маршрут"
-      >
-        <span className="column__title-with-count">
-          <span>Маршруты</span>
-          {assignedRoutes.length > 0 && <span className="column__title-count">{assignedRoutes.length}</span>}
-        </span>
-        <Tooltip title="Новый маршрут">
-          <span
-            className="column__title-icon"
-            style={{ ['--icon-src' as string]: `url(${plusIcon})` }}
-            aria-hidden
-          />
-        </Tooltip>
-      </button>
-      {(draftRoutes.length > 0 || draftSectionExiting) ? (
-        <div
-          className={`section${draftSectionExiting ? ' section--route-exiting' : ''}`}
-          onAnimationEnd={(e) => {
-            if (e.animationName === 'route-draft-disappear') setDraftSectionExiting(false)
-          }}
-        >
-          <div className="section__title">Новый маршрут</div>
-          <div className="section__list">
-            {draftRoutes.map((route) => (
-              <RouteDraftCard
-                key={route.id}
-                route={route}
-                couriers={courierList}
-                orders={orders}
-                now={now}
-                orderStageMin={orderStageMin}
-                routeStageMin={routeStageMin}
-                highlightedOrderIdFromMap={highlightedOrderIdFromMap}
-                isJustAppeared={recentlyRevertedToDraftRouteIds.includes(route.id) || nextRevertedDraftId === route.id}
-                onDelete={onDeleteDraft}
-                onDetachCourier={detachCourierFromRoute}
-                onAttachCourier={attachCourierToRoute}
-                onDetachOrder={detachOrderFromRoute}
-                onAttachOrder={(routeId, orderId) => {
-                  attachOrderToRoute(routeId, orderId)
-                  focusMapOnRoute(routeId)
-                }}
-                onReorderOrders={reorderRouteOrders}
-                onSend={onSendRouteClick}
-                onSendAfterExit={onSendAfterExit}
-                pendingSendRouteId={pendingSendRouteId}
-                onFocusOnMap={focusMapOnRoute}
-                onExiting={draftRoutes.length === 1 ? () => setDraftSectionExiting(true) : undefined}
-              />
-            ))}
+      <ModeSelectorSection
+        routesCount={routesHeaderCount}
+        routeMode={routeMode}
+        onRouteModeChange={onRouteModeChange}
+      />
+      {routeMode === 'manual' ? (
+        <>
+          {(manualTemplateCardCount > 0 || draftSectionExiting) ? (
+            <div
+              className={`section${draftSectionExiting ? ' section--route-exiting' : ''}`}
+              onAnimationEnd={(e) => {
+                if (e.animationName === 'route-draft-disappear') setDraftSectionExiting(false)
+              }}
+            >
+              <div className="section__title">Собрать маршрут</div>
+              <div className="section__list">
+                {draftRoutes.map((route) => (
+                  <RouteDraftCard key={route.id} {...draftCardProps(route, manualTemplateCardCount)} />
+                ))}
+                {sentPickupAwaitingKitchen.map((route) => (
+                  <RouteDeliveryCard key={route.id} {...deliveryCardProps(route, true)} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {manualAssignedRoutes.length > 0 ? (
+            <div className="section">
+              <div className="section__title">Назначенные</div>
+              <div className="section__list">
+                {manualAssignedRoutes.map((route) => (
+                  <RouteDeliveryCard key={route.id} {...deliveryCardProps(route, true)} />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        autoAssembledRoutes.length > 0 ? (
+          <div className="section">
+            <div className="section__title">Собранные автоматически</div>
+            <div className="section__list">
+              {autoAssembledRoutes.map((route) => (
+                <RouteDeliveryCard key={route.id} {...deliveryCardProps(route, false)} />
+              ))}
+            </div>
           </div>
-        </div>
-      ) : null}
-      {assignedRoutes.length > 0 ? (
-        <div className="section">
-          <div className="section__title">Назначенные</div>
-          <div className="section__list">
-            {assignedRoutes.map((route) => (
-              <RouteDeliveryCard
-                key={route.id}
-                route={route}
-                courier={couriers[route.courierId]}
-                orders={orders}
-                now={now}
-                orderStageMin={orderStageMin}
-                routeStageMin={routeStageMin}
-                highlightedOrderIdFromMap={highlightedOrderIdFromMap}
-                isJustAppeared={recentlySentRouteIds.includes(route.id)}
-                onRevertToDraft={onRevertClick}
-                onRevertAfterExit={onRevertAfterExit}
-                pendingRevertRouteId={pendingRevertRouteId}
-                onFocusOnMap={focusMapOnRoute}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
+        ) : null
+      )}
     </section>
   )
 }
