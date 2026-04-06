@@ -150,6 +150,15 @@
   font-style: normal;
 }
 
+.route-draft__courier-name--draggable {
+  cursor: grab;
+  user-select: none;
+}
+
+.route-draft__courier-name--draggable:active {
+  cursor: grabbing;
+}
+
 .route-draft__orders .route-draft__placeholder-text {
   color: var(--text-2);
   font: var(--type-subtitle);
@@ -287,6 +296,35 @@
 
 .route-draft__remove--small:focus:not(:focus-visible) {
   outline: none;
+}
+
+@keyframes jiggle {
+  0%, 100% { transform: rotate(-9deg); }
+  50%       { transform: rotate(9deg); }
+}
+
+@keyframes jiggle-card {
+  0%, 100% { transform: rotate(-0.3deg); }
+  50%       { transform: rotate(0.3deg); }
+}
+
+.card--jiggle {
+  animation: jiggle-card 0.3s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.card--jiggle:nth-child(even) {
+  animation-delay: -0.1s;
+}
+
+.route-draft__remove--jiggle {
+  animation: jiggle 0.28s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.route-draft__plus-icon--jiggle {
+  animation: jiggle 0.28s ease-in-out infinite;
+  transform-origin: center;
 }
 
 .route-draft__footer {

@@ -1,5 +1,5 @@
 import { type Courier, type Order, type Route } from '../model/types'
-import { MINUTE_MS, type OrderStageMin } from '../model/rules'
+import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import { RESTAURANT_COORDS } from '../model/types'
 
 /** Допустимая разница времени готовности заказов (мин) — один заказ не будет долго ждать другой */
@@ -101,12 +101,25 @@ export function computeAutoAssign(
   routes: Record<string, Route>,
   now: number,
   orderStageMin: OrderStageMin,
+  routeStageMin: RouteStageMin,
 ): AutoAssignResult {
   const orderIdsInRoutes = new Set(Object.values(routes).flatMap((r) => r.orderIds))
 
-  const freeCouriers = Object.values(couriers)
-    .filter((c) => c.status === 'free')
-    .sort((a, b) => (a.freeSince ?? now) - (b.freeSince ?? now))
+  /** Оценка времени, когда курьер станет свободным (мс) */
+  const getEstimatedFreeAt = (courier: Courier): number => {
+    if (courier.status === 'free') return courier.freeSince ?? now
+    const courierRoute = courier.routeId ? routes[courier.routeId] : undefined
+    if (!courierRoute?.returningStartedAt) return now
+    return courierRoute.returningStartedAt + routeStageMin.returning * MINUTE_MS
+  }
+
+  const availableCouriers = Object.values(couriers)
+    .filter(
+      (c) =>
+        c.status === 'free' ||
+        (c.status === 'returning' && !c.nextRouteId),
+    )
+    .sort((a, b) => getEstimatedFreeAt(a) - getEstimatedFreeAt(b))
 
   const availableOrders = Object.values(orders).filter(
     (o) =>
@@ -115,7 +128,7 @@ export function computeAutoAssign(
       !o.routeId,
   )
 
-  if (freeCouriers.length === 0 || availableOrders.length === 0) {
+  if (availableCouriers.length === 0 || availableOrders.length === 0) {
     return null
   }
 
@@ -129,7 +142,7 @@ export function computeAutoAssign(
     return readyA - readyB
   })
 
-  const courier = freeCouriers[0]
+  const courier = availableCouriers[0]
   const primary = availableOrders[0]
   const rest = availableOrders.slice(1)
   const orderIds = buildRouteOrderIds(primary, rest, now, orderStageMin)

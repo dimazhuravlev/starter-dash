@@ -5,6 +5,7 @@
   flex-direction: column;
   background: var(--surface-0);
   color: var(--text-1);
+  overflow-x: hidden;
 }
 
 .app-content__empty {

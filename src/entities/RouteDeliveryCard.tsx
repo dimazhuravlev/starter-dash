@@ -26,6 +26,7 @@ const courierTypeIcons = {
 export function RouteDeliveryCard({
   route,
   courier,
+  courierReturnMin = 0,
   orders,
   now,
   orderStageMin,
@@ -36,6 +37,7 @@ export function RouteDeliveryCard({
   onRevertAfterExit,
   pendingRevertRouteId,
   onFocusOnMap,
+  onSwitchToManual,
   /** false в авторежиме — кнопка «Изменить маршрут» скрыта */
   canEditRoute = true,
   /** Одноразовый блик для новых карточек в «Собранные автоматически» (только созданные уже в авторежиме) */
@@ -44,6 +46,8 @@ export function RouteDeliveryCard({
 }: {
   route: Route
   courier?: Courier
+  /** Сколько минут курьеру возвращаться до ресторана (если сейчас в статусе returning) */
+  courierReturnMin?: number
   orders: Record<string, Order>
   now: number
   orderStageMin: OrderStageMin
@@ -60,6 +64,8 @@ export function RouteDeliveryCard({
   /** Id маршрута, для которого запущена анимация «редактировать» — карточка скрывается, затем вызывается onRevertAfterExit */
   pendingRevertRouteId?: string | null
   onFocusOnMap?: (routeId: string) => void
+  /** Авторежим: переключить в ручной режим (показывает кнопку Edit на авто-карточках) */
+  onSwitchToManual?: () => void
 }) {
   const [isExiting, setIsExiting] = useState(false)
   const [hasPlayedAppearAnimation, setHasPlayedAppearAnimation] = useState(false)
@@ -94,7 +100,7 @@ export function RouteDeliveryCard({
       if (revertAfterExitCalledRef.current) return
       revertAfterExitCalledRef.current = true
       onRevertAfterExit?.(route.id)
-    }, 350)
+    }, 520)
     return () => window.clearTimeout(t)
   }, [canEditRoute, pendingRevertRouteId, route.id, onRevertAfterExit])
 
@@ -148,10 +154,11 @@ export function RouteDeliveryCard({
           .map((id) => orders[id])
           .filter((o): o is Order => !!o && (o.status === 'waiting_cook' || o.status === 'cooking'))
       : []
-  const maxMinutesUntilReady =
+  const maxKitchenMin =
     unreadyOrdersInRoute.length > 0
       ? Math.max(...unreadyOrdersInRoute.map(getMinutesUntilReady))
       : 0
+  const maxMinutesUntilReady = Math.max(maxKitchenMin, courierReturnMin)
   const pickupStartedAt =
     route.orderIds.length > 0
       ? Math.max(...route.orderIds.map((id) => orders[id]?.statusStartedAt ?? 0))
@@ -168,9 +175,12 @@ export function RouteDeliveryCard({
           ? formatElapsedLabel(routeStepLabel[route.step.kind], route.returningStartedAt)
           : null
         : null
-  const showEditButton = canEditRoute && onRevertToDraft && route.step.kind === 'pickup'
-
   const autoIntroEffectivePhase = playAutoTemplateShimmer ? (autoIntroPhase ?? 'shimmer') : null
+
+  const showEditButton =
+    ((canEditRoute && onRevertToDraft && route.step.kind === 'pickup') ||
+    (!canEditRoute && !!onSwitchToManual && route.step.kind === 'pickup')) &&
+    autoIntroEffectivePhase !== 'shimmer'
   const autoIntroClass = autoIntroEffectivePhase
     ? ` card--delivery-auto-intro${autoIntroEffectivePhase === 'shimmer' ? ' card--delivery-auto-shimmer' : ''}${autoIntroEffectivePhase === 'content' ? ' card--delivery-auto-intro--phase-content' : ''}`
     : ''
@@ -189,15 +199,19 @@ export function RouteDeliveryCard({
     >
       {showEditButton ? (
         <div className="delivery__edit-wrap">
-          <Tooltip title="Изменить маршрут">
+          <Tooltip title={canEditRoute ? 'Изменить маршрут' : 'Редактировать'}>
             <button
               type="button"
               className="delivery__edit-btn"
               onClick={(e) => {
                 e.stopPropagation()
-                onRevertToDraft(route.id)
+                if (canEditRoute && onRevertToDraft) {
+                  onRevertToDraft(route.id)
+                } else {
+                  onSwitchToManual?.()
+                }
               }}
-              aria-label="Изменить маршрут"
+              aria-label={canEditRoute ? 'Изменить маршрут' : 'Редактировать'}
             >
               <span
                 className="delivery__edit-icon"
@@ -217,7 +231,10 @@ export function RouteDeliveryCard({
             aria-hidden
           />
         ) : null}
-        <div className="card__title">{courier?.name ?? '—'}</div>
+        {courier
+          ? <div className="card__title">{courier.name}</div>
+          : <div className="card__title delivery__courier-pending">Подбираю курьера</div>
+        }
       </div>
       {headerLabel ? <div className="chip delivery__label">{headerLabel}</div> : null}
       <div className="delivery__orders">

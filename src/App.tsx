@@ -80,12 +80,14 @@ function App() {
     if (typeof localStorage !== 'undefined') localStorage.setItem('theme', theme)
   }, [theme])
 
-  // Синхронизация routeMode в store с режимом активного ресторана
+  // Синхронизация routeMode и времён pickup/handoff из активного ресторана
   useEffect(() => {
-    if (restaurants[activeRestaurantTab]) {
-      setRouteMode(restaurants[activeRestaurantTab].routeMode)
-    }
-  }, [activeRestaurantTab, restaurants, setRouteMode])
+    const restaurant = restaurants[activeRestaurantTab]
+    if (!restaurant) return
+    setRouteMode(restaurant.routeMode)
+    setRouteStageMin('pickup', restaurant.pickupMin)
+    setRouteStageMin('handoff', restaurant.handoffMin)
+  }, [activeRestaurantTab, restaurants, setRouteMode, setRouteStageMin])
 
   const handleRouteModeChange = useCallback(
     (mode: 'auto' | 'manual') => {

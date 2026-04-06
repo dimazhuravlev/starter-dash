@@ -42,7 +42,7 @@ const routeModeColumnTooltipContent = (
     <div className="tooltip-rich__section">
       <div className="tooltip-rich__title">Автомат</div>
       <p className="tooltip-rich__desc">
-        Система сама формирует маршруты: подбирает курьеров и оптимально объединяет заказы. Вы только наблюдаете
+        Система сама формирует маршруты: подбирает курьеров и оптимально объединяет заказы
       </p>
     </div>
     <div className="tooltip-rich__section">

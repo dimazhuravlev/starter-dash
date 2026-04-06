@@ -53,6 +53,33 @@
   font: var(--type-text);
 }
 
+.primary-btn--accent {
+  height: 32px;
+  padding: 0 12px;
+  background: linear-gradient(290deg, #7E00E5 0%, #B21AFF 40%, #7E00E5 100%);
+  background-size: 200% 100%;
+  background-position: right center;
+  color: #ffffff;
+  font: var(--type-subtitle);
+  transition:
+    opacity 200ms ease,
+    background-position 600ms ease;
+}
+
+.primary-btn--accent:hover:not(:disabled) {
+  background-position: left center;
+}
+
+.primary-btn--accent .primary-btn__icon {
+  background-color: #ffffff;
+}
+
+.primary-btn--accent.primary-btn--with-icon {
+  padding-left: 10px;
+  padding-right: 12px;
+  gap: 4px;
+}
+
 /* Вторичная кнопка (дебаг-панель, группы): ховер как у карточек — оверлей */
 .primary-btn--ghost {
   position: relative;

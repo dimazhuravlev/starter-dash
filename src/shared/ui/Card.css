@@ -160,25 +160,25 @@
 
 /* Анимация появления только при первом появлении в колонке (класс добавляется из компонента и снимается после animationend) */
 .card--route-empty.card--route-appearing {
-  animation: route-draft-appear 300ms ease forwards;
+  animation: route-draft-appear 480ms ease forwards;
 }
 
 .card--route-exiting {
-  animation: route-draft-disappear 300ms ease forwards;
+  animation: route-draft-disappear 480ms ease forwards;
   pointer-events: none;
 }
 
 .card--delivery-appearing {
   opacity: 0;
   transform: translateY(-12px);
-  animation: delivery-card-enter 300ms ease-out forwards;
+  animation: delivery-card-enter 480ms ease-out forwards;
 }
 
 .card--delivery-exiting {
   /* Начальное состояние видимо, иначе при одновременном .card--delivery-appearing карточка уже невидима и анимация выхода не видна */
   opacity: 1;
   transform: translateY(0);
-  animation: delivery-card-exit 300ms ease forwards;
+  animation: delivery-card-exit 480ms ease forwards;
   pointer-events: none;
 }
 
@@ -206,7 +206,7 @@
 
 .card--draft-appearing {
   opacity: 0;
-  animation: draft-card-enter 300ms ease-out both;
+  animation: draft-card-enter 480ms ease-out both;
 }
 
 @keyframes draft-card-enter {

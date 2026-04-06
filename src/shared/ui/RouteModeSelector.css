@@ -114,6 +114,10 @@
   color: var(--text-1);
 }
 
+.route-mode-selector__label--auto.route-mode-selector__label--active {
+  color: var(--accent);
+}
+
 .route-mode-selector__label--inactive {
   color: var(--text-2);
 }

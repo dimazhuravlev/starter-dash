@@ -25,6 +25,8 @@ export type DashboardState = {
   orderSlaOptionsMin: number[]
   routeStageMin: RouteStageMin
   routeMode: RouteMode
+  /** Режим редактирования автомаршрутов — авто-назначение приостановлено */
+  isEditingAutoRoutes: boolean
 }
 
 const getOrderStageMs = (orderStageMin: OrderStageMin) => ({
@@ -302,6 +304,10 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
     }
 
     if (route.step.kind === 'pickup') {
+      // Курьер ещё возвращается с предыдущего маршрута — ждём его прибытия в ресторан
+      const courier = route.courierId ? couriers[route.courierId] : undefined
+      if (courier?.status === 'returning' && courier.nextRouteId === route.id) return
+
       const hasUnreadyOrders = route.orderIds.some((id) => {
         const o = orders[id]
         return o && (o.status === 'waiting_cook' || o.status === 'cooking')
@@ -391,11 +397,30 @@ export const step = (state: DashboardState, deltaMs: number): DashboardState => 
       route.orderIds.forEach((orderId) => {
         setOrderStatus(orders, orderId, 'delivered', stepCompletedAt)
       })
-      updateCourier(couriers, route.courierId, {
-        status: 'free',
-        routeId: undefined,
-        freeSince: stepCompletedAt,
-      })
+      const courier = couriers[route.courierId]
+      if (courier?.nextRouteId) {
+        // Курьер уже предназначен для следующего маршрута — сразу переходим в assigned
+        const nextRoute = routes[courier.nextRouteId]
+        if (nextRoute) {
+          nextRoute.orderIds.forEach((orderId) => {
+            const order = orders[orderId]
+            if (order?.status === 'ready') {
+              orders[orderId] = { ...order, status: 'pickup', statusStartedAt: stepCompletedAt }
+            }
+          })
+        }
+        updateCourier(couriers, route.courierId, {
+          status: 'assigned',
+          routeId: courier.nextRouteId,
+          nextRouteId: undefined,
+        })
+      } else {
+        updateCourier(couriers, route.courierId, {
+          status: 'free',
+          routeId: undefined,
+          freeSince: stepCompletedAt,
+        })
+      }
     }
   })
 

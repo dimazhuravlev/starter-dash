@@ -32,9 +32,7 @@
   display: flex;
   gap: 6px;
   align-items: center;
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 32px;
+  font: var(--type-headline-1);
   white-space: nowrap;
 }
 

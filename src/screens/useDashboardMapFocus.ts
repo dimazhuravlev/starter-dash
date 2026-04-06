@@ -55,7 +55,6 @@ export function useDashboardMapFocus({
     const state = useDashboardStore.getState()
     const route = state.routes[routeId]
     if (!route?.orderIds.length) return
-    if (mapViewMode === 'none') setMapViewMode('half')
     setHighlightedOrderIdFromMap(null)
     setFocusedRouteId(routeId)
     const orderCoords = route.orderIds
@@ -71,7 +70,7 @@ export function useDashboardMapFocus({
       sw: { lng: Math.min(...lngs), lat: Math.min(...lats) },
       ne: { lng: Math.max(...lngs), lat: Math.max(...lats) },
     })
-  }, [mapViewMode])
+  }, [])
 
   const handleMarkerClick = useCallback(
     (marker: { id: string }) => {

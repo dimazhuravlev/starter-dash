@@ -37,6 +37,10 @@ type RouteDraftCardProps = {
   onDetachOrder: (routeId: string, orderId: string) => void
   onAttachOrder: (routeId: string, orderId: string) => void
   onReorderOrders: (routeId: string, fromIndex: number, toIndex: number) => void
+  /** Переместить заказ из другого шаблона в этот */
+  onMoveOrderHere?: (fromRouteId: string, orderId: string) => void
+  /** Переместить курьера из другого шаблона в этот */
+  onMoveCourierHere?: (fromRouteId: string, courierId: string) => void
   onSend: (routeId: string) => void
   /** Вызывается после анимации скрытия при назначении маршрута (перед вызовом sendRoute не вызывается) */
   onSendAfterExit?: (routeId: string) => void
@@ -48,6 +52,8 @@ type RouteDraftCardProps = {
   onExiting?: () => void
   /** Карточка только что появилась в «Новый маршрут» после нажатия «Редактировать» — проигрывается анимация появления */
   isJustAppeared?: boolean
+  /** Скрыть нижний блок с кнопками «Назначить» и «Удалить» (режим редактирования авторежима) */
+  hideActions?: boolean
 }
 
 export function RouteDraftCard({
@@ -65,11 +71,14 @@ export function RouteDraftCard({
   onAttachCourier,
   onAttachOrder,
   onReorderOrders,
+  onMoveOrderHere,
+  onMoveCourierHere,
   onSend,
   onSendAfterExit,
   pendingSendRouteId,
   onFocusOnMap,
   onExiting,
+  hideActions,
 }: RouteDraftCardProps) {
   const [dragOverKind, setDragOverKind] = useState<'courier' | 'order' | null>(null)
   const [reorderDropIndex, setReorderDropIndex] = useState<number | null>(null)
@@ -109,6 +118,19 @@ export function RouteDraftCard({
       const order = orders[payload.id]
       return Boolean(order && order.status !== 'enroute' && order.status !== 'handoff' && !order.routeId)
     }
+    if (payload.kind === 'route-order') {
+      // cross-route перенос заказа из другого шаблона
+      if (payload.routeId === route.id) return false
+      if (!canAttachOrder || selectedOrderIds.has(payload.id)) return false
+      const order = orders[payload.id]
+      return Boolean(order && order.status !== 'enroute' && order.status !== 'handoff')
+    }
+    if (payload.kind === 'route-courier') {
+      // cross-route перенос курьера из другого шаблона
+      if (payload.routeId === route.id) return false
+      if (route.courierId) return false
+      return true
+    }
     return false
   }
 
@@ -130,6 +152,12 @@ export function RouteDraftCard({
     if (payload.kind === 'order') {
       onAttachOrder(route.id, payload.id)
     }
+    if (payload.kind === 'route-order' && payload.routeId !== route.id) {
+      onMoveOrderHere?.(payload.routeId, payload.id)
+    }
+    if (payload.kind === 'route-courier' && payload.routeId !== route.id) {
+      onMoveCourierHere?.(payload.routeId, payload.id)
+    }
     clearDndPayload()
   }
 
@@ -138,10 +166,17 @@ export function RouteDraftCard({
     const payload = parseDndPayload(event) ?? getLastDndPayload()
     if (!payload || !canDropPayload(payload)) return
     if (payload.kind === 'order' && isFull) return
+    if (payload.kind === 'route-order' && isFull) return
     event.preventDefault()
-    event.dataTransfer.dropEffect = 'copy'
+    event.dataTransfer.dropEffect = payload.kind === 'route-order' || payload.kind === 'route-courier' ? 'move' : 'copy'
     if (payload.kind === 'courier' || payload.kind === 'order') {
       setDragOverKind(payload.kind)
+    }
+    if (payload.kind === 'route-order' && payload.routeId !== route.id) {
+      setDragOverKind('order')
+    }
+    if (payload.kind === 'route-courier' && payload.routeId !== route.id) {
+      setDragOverKind('courier')
     }
     setLastDropRouteId(route.id)
   }
@@ -151,10 +186,11 @@ export function RouteDraftCard({
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
     const payload = parseDndPayload(event) ?? getLastDndPayload()
-    if (payload && (payload.kind === 'courier' || payload.kind === 'order') && canDropPayload(payload)) {
-      if (!(payload.kind === 'order' && isFull)) {
-        setDragOverKind(payload.kind)
-      }
+    if (payload && canDropPayload(payload)) {
+      if (payload.kind === 'courier') setDragOverKind('courier')
+      if (payload.kind === 'order' && !isFull) setDragOverKind('order')
+      if (payload.kind === 'route-order' && payload.routeId !== route.id && !isFull) setDragOverKind('order')
+      if (payload.kind === 'route-courier' && payload.routeId !== route.id) setDragOverKind('courier')
     }
   }
 
@@ -202,7 +238,7 @@ export function RouteDraftCard({
 
   return (
     <div
-      className={`card card--route card--route-empty${!hasPlayedEnterAnimation ? ' card--route-appearing' : ''}${isExiting ? ' card--route-exiting' : ''}${isJustAppeared && !hasPlayedDraftAppearAnimation ? ' card--draft-appearing' : ''}${dragOverKind === 'courier' ? ' card--drag-over-courier' : ''}${dragOverKind === 'order' ? ' card--drag-over-order' : ''}${canShowRouteOnMap && onFocusOnMap ? ' card--focus-on-map' : ''}`}
+      className={`card card--route card--route-empty${!hasPlayedEnterAnimation ? ' card--route-appearing' : ''}${isExiting ? ' card--route-exiting' : ''}${isJustAppeared && !hasPlayedDraftAppearAnimation ? ' card--draft-appearing' : ''}${dragOverKind === 'courier' ? ' card--drag-over-courier' : ''}${dragOverKind === 'order' ? ' card--drag-over-order' : ''}${canShowRouteOnMap && onFocusOnMap ? ' card--focus-on-map' : ''}${hideActions ? ' card--jiggle' : ''}`}
       role={canShowRouteOnMap && onFocusOnMap ? 'button' : undefined}
       tabIndex={canShowRouteOnMap && onFocusOnMap ? 0 : undefined}
       onClick={canShowRouteOnMap && onFocusOnMap ? handleCardClick : undefined}
@@ -228,7 +264,16 @@ export function RouteDraftCard({
                     <span className="route-draft__icon" style={{ ['--icon-src' as string]: `url(${crossIcon})` }} aria-hidden />
                   </button>
                 </Tooltip>
-                <span className="route-draft__courier-name">{selectedCourier.name}</span>
+                <span
+                  className="route-draft__courier-name route-draft__courier-name--draggable"
+                  draggable
+                  onDragStart={(e) => {
+                    setDndPayload(e, { kind: 'route-courier', id: selectedCourier.id, routeId: route.id })
+                    setDragImageAsCopy(e, e.currentTarget)
+                  }}
+                >
+                  {selectedCourier.name}
+                </span>
               </>
             ) : (
               <>
@@ -394,7 +439,7 @@ export function RouteDraftCard({
           </div>
         ) : null}
       </div>
-      {!isEmptyTemplate ? (
+      {!isEmptyTemplate && !hideActions ? (
         <div className="route-draft__footer">
           <PrimaryButton
             variant="default"

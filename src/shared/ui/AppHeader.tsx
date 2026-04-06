@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import burgerMenuIcon from '../../assets/burger-menu.svg'
+import crossIcon from '../../assets/Cross.svg'
 import settingsIcon from '../../assets/Settings.svg'
 import exitIcon from '../../assets/Exit.svg'
 import { Tooltip } from './Tooltip'
@@ -29,6 +30,7 @@ export function AppHeader({
 }: AppHeaderProps) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const profileWrapRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     if (!profileMenuOpen) return
@@ -40,16 +42,28 @@ export function AppHeader({
     return () => document.removeEventListener('pointerdown', onPointerDown)
   }, [profileMenuOpen])
 
+  useEffect(() => {
+    if (!isMenuOpen) return
+    const onPointerDown = (e: PointerEvent) => {
+      if (headerRef.current?.contains(e.target as Node)) return
+      onMenuToggle()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [isMenuOpen, onMenuToggle])
+
   return (
-    <header className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
+    <>
+    <header ref={headerRef} className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
+      <div className={`app-header__overlay${isMenuOpen ? ' app-header__overlay--visible' : ''}`} aria-hidden />
       <button
         type="button"
         className="app-header__burger"
-        aria-label="Открыть меню"
+        aria-label={isMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
         aria-expanded={isMenuOpen}
         onClick={onMenuToggle}
       >
-        <img src={burgerMenuIcon} alt="" />
+        <img src={isMenuOpen ? crossIcon : burgerMenuIcon} alt="" />
       </button>
       <div className="app-header__tabs">
         {tabItems.map((label, index) => (
@@ -115,5 +129,7 @@ export function AppHeader({
         </Tooltip>
       </div>
     </header>
+    </>
   )
 }
+

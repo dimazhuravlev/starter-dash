@@ -8,6 +8,21 @@
   position: sticky;
   top: 0;
   z-index: 10;
+  min-width: 0;
+}
+
+.app-header__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 11;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.app-header__overlay--visible {
+  opacity: 1;
 }
 
 .app-header__tabs {
@@ -30,6 +45,8 @@
 .app-header__burger img {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
+  display: block;
 }
 
 .tab {
@@ -38,7 +55,7 @@
   border: none;
   background: transparent;
   color: var(--text-2);
-  font: var(--type-title);
+  font: var(--type-headline-2);
   font-style: normal;
   text-transform: none;
   cursor: pointer;
@@ -56,6 +73,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
 }
 
 .app-header__profile-wrap {
@@ -187,27 +206,43 @@
 
   .app-header__tabs {
     position: absolute;
-    top: 100%;
+    top: calc(100% - 8px);
     left: 12px;
-    right: 12px;
-    display: none;
+    display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 10px;
+    gap: 8px;
+    padding: 16px;
+    width: max-content;
     background: var(--surface-0);
     border-radius: 12px;
     border: 1px solid var(--stroke-2);
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
     z-index: 12;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    pointer-events: none;
+    transition:
+      opacity 200ms ease,
+      transform 200ms ease,
+      visibility 0s 200ms;
   }
 
   .app-header--menu-open .app-header__tabs {
-    display: flex;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+    transition:
+      opacity 200ms ease,
+      transform 200ms ease,
+      visibility 0s 0s;
   }
 
   .app-header__tabs .tab {
     text-align: left;
     padding: 0;
     border-radius: 8px;
+    font: var(--type-headline-1);
   }
 }

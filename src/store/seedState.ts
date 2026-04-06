@@ -88,5 +88,6 @@ export const buildSeedState = (settings?: Partial<DashboardSettings>): Dashboard
     orderSlaOptionsMin: resolvedSettings.orderSlaOptionsMin,
     routeStageMin: resolvedSettings.routeStageMin,
     routeMode: 'manual',
+    isEditingAutoRoutes: false,
   }
 }

@@ -1,5 +1,7 @@
+import { useRef, useState } from 'react'
+import { useDashboardStore } from '../store/useDashboardStore'
 import { type Courier, type Order, type Route } from '../model/types'
-import { type OrderStageMin, type RouteStageMin } from '../model/rules'
+import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
 import { ModeSelectorSection } from './ModeSelectorSection'
 import { RouteDeliveryCard } from './RouteDeliveryCard'
 import { RouteDraftCard } from './RouteDraftCard'
@@ -40,6 +42,8 @@ export type RoutesColumnProps = {
   manualAssignedRoutes: Route[]
   /** Авторежим: только pickup (без шаблонов-черновиков) */
   autoAssembledRoutes: Route[]
+  /** Авторежим: маршруты, собранные вручную в ручном режиме */
+  manualAssembledInAutoRoutes: Route[]
   /** Одноразовый металлический блик на карточках авторежима */
   autoTemplateShimmerRouteIds: string[]
   onAutoTemplateShimmerEnd: (routeId: string) => void
@@ -54,6 +58,7 @@ export function RoutesColumn({
   setDraftSectionExiting,
   manualAssignedRoutes,
   autoAssembledRoutes,
+  manualAssembledInAutoRoutes,
   autoTemplateShimmerRouteIds,
   onAutoTemplateShimmerEnd,
   courierList,
@@ -81,19 +86,68 @@ export function RoutesColumn({
   onRevertClick,
   onRevertAfterExit,
 }: RoutesColumnProps) {
+  const isEditingAutoRoutes = useDashboardStore((s) => s.isEditingAutoRoutes)
+  const startEditingAutoRoutes = useDashboardStore((s) => s.startEditingAutoRoutes)
+  const cancelEditingAutoRoutes = useDashboardStore((s) => s.cancelEditingAutoRoutes)
+  const saveEditedAutoRoutes = useDashboardStore((s) => s.saveEditedAutoRoutes)
+  const editSentRouteDetachCourier = useDashboardStore((s) => s.editSentRouteDetachCourier)
+  const editSentRouteAttachCourier = useDashboardStore((s) => s.editSentRouteAttachCourier)
+  const editSentRouteDetachOrder = useDashboardStore((s) => s.editSentRouteDetachOrder)
+  const editSentRouteAttachOrder = useDashboardStore((s) => s.editSentRouteAttachOrder)
+  const editSentRouteReorderOrders = useDashboardStore((s) => s.editSentRouteReorderOrders)
+
+  const [returnedFromEditIds, setReturnedFromEditIds] = useState<string[]>([])
+  const modifiedRouteIdsRef = useRef<Set<string>>(new Set())
+
+  const trackEdit = (routeId: string) => { modifiedRouteIdsRef.current.add(routeId) }
+
+  const handleStartEditing = () => {
+    modifiedRouteIdsRef.current = new Set()
+    startEditingAutoRoutes()
+  }
+  const handleSaveEditing = () => {
+    const allIds = [...autoAssembledRoutes, ...manualAssembledInAutoRoutes].map((r) => r.id)
+    saveEditedAutoRoutes(allIds, [...modifiedRouteIdsRef.current])
+    modifiedRouteIdsRef.current = new Set()
+    setReturnedFromEditIds(allIds)
+    window.setTimeout(() => setReturnedFromEditIds([]), 520)
+  }
+  const handleCancelEditing = () => {
+    modifiedRouteIdsRef.current = new Set()
+    const ids = [...autoAssembledRoutes, ...manualAssembledInAutoRoutes].map((r) => r.id)
+    setReturnedFromEditIds(ids)
+    cancelEditingAutoRoutes()
+    window.setTimeout(() => setReturnedFromEditIds([]), 520)
+  }
+
   const routesHeaderCount =
-    routeMode === 'manual' ? manualAssignedRoutes.length : autoAssembledRoutes.length
+    routeMode === 'manual'
+      ? manualAssignedRoutes.length
+      : autoAssembledRoutes.length + manualAssembledInAutoRoutes.length
   const manualTemplateCardCount = draftRoutes.length + sentPickupAwaitingKitchen.length
+
+  const getCourierReturnMin = (route: Route): number => {
+    const courier = couriers[route.courierId]
+    if (!courier || courier.status !== 'returning') return 0
+    const courierRoute = courier.routeId ? routes[courier.routeId] : undefined
+    if (!courierRoute?.returningStartedAt) return 0
+    const remainingMs = Math.max(
+      routeStageMin.returning * MINUTE_MS - (now - courierRoute.returningStartedAt),
+      0,
+    )
+    return Math.ceil(remainingMs / MINUTE_MS)
+  }
 
   const deliveryCardProps = (route: Route, showRevert: boolean) => ({
     route,
     courier: couriers[route.courierId],
+    courierReturnMin: getCourierReturnMin(route),
     orders,
     now,
     orderStageMin,
     routeStageMin,
     highlightedOrderIdFromMap,
-    isJustAppeared: recentlySentRouteIds.includes(route.id),
+    isJustAppeared: recentlySentRouteIds.includes(route.id) || returnedFromEditIds.includes(route.id),
     canEditRoute: showRevert,
     onRevertToDraft: showRevert ? onRevertClick : undefined,
     onRevertAfterExit: showRevert ? onRevertAfterExit : undefined,
@@ -121,6 +175,15 @@ export function RoutesColumn({
       focusMapOnRoute(rid)
     },
     onReorderOrders: reorderRouteOrders,
+    onMoveOrderHere: (fromRouteId: string, orderId: string) => {
+      detachOrderFromRoute(fromRouteId, orderId)
+      attachOrderToRoute(route.id, orderId)
+      focusMapOnRoute(route.id)
+    },
+    onMoveCourierHere: (fromRouteId: string, courierId: string) => {
+      detachCourierFromRoute(fromRouteId)
+      attachCourierToRoute(route.id, courierId)
+    },
     onSend: onSendRouteClick,
     onSendAfterExit: onSendAfterExit,
     pendingSendRouteId,
@@ -133,6 +196,10 @@ export function RoutesColumn({
       <ModeSelectorSection
         routesCount={routesHeaderCount}
         routeMode={routeMode}
+        isEditing={isEditingAutoRoutes}
+        onStartEditing={handleStartEditing}
+        onSave={handleSaveEditing}
+        onCancelEditing={handleCancelEditing}
         onRouteModeChange={onRouteModeChange}
       />
       {routeMode === 'manual' ? (
@@ -166,17 +233,77 @@ export function RoutesColumn({
             </div>
           ) : null}
         </>
-      ) : (
-        autoAssembledRoutes.length > 0 ? (
-          <div className="section">
-            <div className="section__title">Собранные автоматически</div>
-            <div className="section__list">
-              {autoAssembledRoutes.map((route) => (
-                <RouteDeliveryCard key={route.id} {...deliveryCardProps(route, false)} />
-              ))}
+      ) : isEditingAutoRoutes ? (
+        <>
+          {(autoAssembledRoutes.length > 0 || manualAssembledInAutoRoutes.length > 0) ? (
+            <div className="section">
+              <div className="section__title">Изменить маршруты</div>
+              <div className="section__list">
+                {[...autoAssembledRoutes, ...manualAssembledInAutoRoutes].map((route) => (
+                  <RouteDraftCard
+                    key={route.id}
+                    route={route}
+                    couriers={courierList}
+                    orders={orders}
+                    now={now}
+                    orderStageMin={orderStageMin}
+                    routeStageMin={routeStageMin}
+                    highlightedOrderIdFromMap={highlightedOrderIdFromMap}
+                    onClearDraftContent={() => {}}
+                    onDetachCourier={(rid) => { trackEdit(rid); editSentRouteDetachCourier(rid) }}
+                    onAttachCourier={(rid, cid) => { trackEdit(rid); editSentRouteAttachCourier(rid, cid) }}
+                    onDetachOrder={(rid, oid) => { trackEdit(rid); editSentRouteDetachOrder(rid, oid) }}
+                    onAttachOrder={(rid, oid) => { trackEdit(rid); editSentRouteAttachOrder(rid, oid); focusMapOnRoute(rid) }}
+                    onReorderOrders={(rid, fi, ti) => { trackEdit(rid); editSentRouteReorderOrders(rid, fi, ti) }}
+                    onMoveOrderHere={(fromRouteId, orderId) => {
+                      trackEdit(fromRouteId); trackEdit(route.id)
+                      editSentRouteDetachOrder(fromRouteId, orderId)
+                      editSentRouteAttachOrder(route.id, orderId)
+                      focusMapOnRoute(route.id)
+                    }}
+                    onMoveCourierHere={(fromRouteId, courierId) => {
+                      trackEdit(fromRouteId); trackEdit(route.id)
+                      editSentRouteDetachCourier(fromRouteId)
+                      editSentRouteAttachCourier(route.id, courierId)
+                    }}
+                    onSend={() => {}}
+                    onFocusOnMap={focusMapOnRoute}
+                    hideActions
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        ) : null
+          ) : null}
+        </>
+      ) : (
+        <>
+          {autoAssembledRoutes.length > 0 ? (
+            <div className="section">
+              <div className="section__title">Собранные автоматически</div>
+              <div className="section__list">
+                {autoAssembledRoutes.map((route) => (
+                  <RouteDeliveryCard
+                    key={route.id}
+                    {...deliveryCardProps(route, false)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {manualAssembledInAutoRoutes.length > 0 ? (
+            <div className="section">
+              <div className="section__title">Собранные вручную</div>
+              <div className="section__list">
+                {manualAssembledInAutoRoutes.map((route) => (
+                  <RouteDeliveryCard
+                    key={route.id}
+                    {...deliveryCardProps(route, false)}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </>
       )}
     </section>
   )

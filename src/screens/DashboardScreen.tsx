@@ -113,11 +113,19 @@ export function DashboardScreen({
         .sort((a, b) => a.createdAt - b.createdAt),
     [sentRoutes, orders],
   )
-  /** Авторежим: только назначенные pickup (шаблонов в UI нет) */
+  /** Авторежим: авто-сборка pickup (без шаблонов-черновиков) */
   const autoAssembledRoutes = useMemo(
     () =>
       [...routeList]
-        .filter((route) => route.status === 'sent' && route.step.kind === 'pickup')
+        .filter((route) => route.status === 'sent' && route.step.kind === 'pickup' && route.assembly === 'auto')
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [routeList],
+  )
+  /** Авторежим: маршруты, собранные вручную в ручном режиме — отображаются отдельной секцией */
+  const manualAssembledInAutoRoutes = useMemo(
+    () =>
+      [...routeList]
+        .filter((route) => route.status === 'sent' && route.step.kind === 'pickup' && route.assembly === 'manual')
         .sort((a, b) => b.createdAt - a.createdAt),
     [routeList],
   )
@@ -190,7 +198,7 @@ export function DashboardScreen({
       setRecentlySentRouteIds((prev) => [...prev, routeId])
       window.setTimeout(() => {
         if (mountedRef.current) setRecentlySentRouteIds((prev) => prev.filter((id) => id !== routeId))
-      }, 350)
+      }, 520)
     },
     [sendRoute],
   )
@@ -206,31 +214,55 @@ export function DashboardScreen({
         setPendingRevertRouteId(null)
         setRecentlyRevertedToDraftRouteIds((prev) => [...prev, routeId])
       })
-      /* Карточка уже вызвала onRevertAfterExit после 350ms, сразу переносим маршрут в черновики */
+      /* Карточка уже вызвала onRevertAfterExit после 520ms, сразу переносим маршрут в черновики */
       revertRouteToDraft(routeId)
       window.setTimeout(() => {
         if (mountedRef.current) {
           setRecentlyRevertedToDraftRouteIds((prev) => prev.filter((id) => id !== routeId))
           setNextRevertedDraftId(null)
         }
-      }, 350)
+      }, 520)
     },
     [revertRouteToDraft],
   )
 
-  const orderIdsInAnyRoute = useMemo(
-    () => new Set(routeList.flatMap((r) => r.orderIds)),
-    [routeList],
+  /** Id заказов, маршрут которых уже в фактической доставке (enroute/handoff/returning) — скрываем из колонки */
+  const orderIdsInActiveDelivery = useMemo(() => {
+    const ids = new Set<string>()
+    for (const route of routeList) {
+      if (route.status === 'sent' && route.step.kind !== 'pickup') {
+        for (const orderId of route.orderIds) {
+          ids.add(orderId)
+        }
+      }
+    }
+    return ids
+  }, [routeList])
+
+  const ordersVisibleInColumn = useMemo(
+    () =>
+      orderList.filter(
+        (order) =>
+          !orderIdsInActiveDelivery.has(order.id) &&
+          order.status !== 'delivered',
+      ),
+    [orderList, orderIdsInActiveDelivery],
   )
-  const ordersVisibleInColumn = orderList.filter(
-    (order) =>
-      !orderIdsInAnyRoute.has(order.id) ||
-      order.status === 'waiting_cook' ||
-      order.status === 'cooking',
+  const ordersWaiting = useMemo(
+    () => ordersVisibleInColumn.filter((order) => order.status === 'waiting_cook'),
+    [ordersVisibleInColumn],
   )
-  const ordersWaiting = ordersVisibleInColumn.filter((order) => order.status === 'waiting_cook')
-  const ordersCooking = ordersVisibleInColumn.filter((order) => order.status === 'cooking')
-  const ordersReady = ordersVisibleInColumn.filter((order) => order.status === 'ready')
+  const ordersCooking = useMemo(
+    () => ordersVisibleInColumn.filter((order) => order.status === 'cooking'),
+    [ordersVisibleInColumn],
+  )
+  const ordersReady = useMemo(
+    () =>
+      ordersVisibleInColumn.filter(
+        (order) => order.status === 'ready' || order.status === 'pickup',
+      ),
+    [ordersVisibleInColumn],
+  )
 
   const { orderMarkers, courierMarkers, routePathCoords, orderIdsInRoute } = useDashboardMapData({
     orders,
@@ -260,7 +292,7 @@ export function DashboardScreen({
     setRecentlyMovedToActiveRouteIds((prev) => [...prev, ...newlyActiveIds])
     const t = window.setTimeout(() => {
       setRecentlyMovedToActiveRouteIds((prev) => prev.filter((id) => !newlyActiveIds.includes(id)))
-    }, 350)
+    }, 520)
     return () => window.clearTimeout(t)
   }, [clientRoutes])
 
@@ -380,6 +412,7 @@ export function DashboardScreen({
         setDraftSectionExiting={setDraftSectionExiting}
         manualAssignedRoutes={manualAssignedRoutes}
         autoAssembledRoutes={autoAssembledRoutes}
+        manualAssembledInAutoRoutes={manualAssembledInAutoRoutes}
         recentlyRevertedToDraftRouteIds={recentlyRevertedToDraftRouteIds}
         nextRevertedDraftId={nextRevertedDraftId}
         recentlySentRouteIds={recentlySentRouteIds}

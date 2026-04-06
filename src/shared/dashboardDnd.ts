@@ -6,6 +6,7 @@ export type DndPayload =
   | { kind: 'courier'; id: string }
   | { kind: 'order'; id: string }
   | { kind: 'route-order'; id: string; routeId: string }
+  | { kind: 'route-courier'; id: string; routeId: string }
 
 const DND_MIME = 'application/x-dashboard-dnd'
 let lastDndPayload: DndPayload | null = null
@@ -22,6 +23,9 @@ export const parseDndPayload = (event: DragEvent<HTMLElement>): DndPayload | nul
     if (parsed.kind === 'route-order' && typeof parsed.id === 'string' && typeof parsed.routeId === 'string') {
       return { kind: 'route-order', id: parsed.id, routeId: parsed.routeId }
     }
+    if (parsed.kind === 'route-courier' && typeof parsed.id === 'string' && typeof parsed.routeId === 'string') {
+      return { kind: 'route-courier', id: parsed.id, routeId: parsed.routeId }
+    }
     if ((parsed.kind === 'courier' || parsed.kind === 'order') && typeof parsed.id === 'string') {
       return { kind: parsed.kind, id: parsed.id }
     }
@@ -34,7 +38,7 @@ export const parseDndPayload = (event: DragEvent<HTMLElement>): DndPayload | nul
 export const setDndPayload = (event: DragEvent<HTMLElement>, payload: DndPayload) => {
   event.dataTransfer.setData(DND_MIME, JSON.stringify(payload))
   event.dataTransfer.setData('text/plain', JSON.stringify(payload))
-  event.dataTransfer.effectAllowed = payload.kind === 'route-order' ? 'move' : 'copy'
+  event.dataTransfer.effectAllowed = (payload.kind === 'route-order' || payload.kind === 'route-courier') ? 'move' : 'copy'
   lastDndPayload = payload
 }
 

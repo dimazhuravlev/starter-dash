@@ -165,6 +165,7 @@ type DashboardActions = {
   toggleRun: () => void
   setSpeed: (speed: 1 | 3 | 5 | 20) => void
   setRouteMode: (mode: 'manual' | 'auto') => void
+  startEditingAutoRoutes: () => void
   createRouteDraft: () => string
   deleteRouteDraft: (routeId: string) => void
   /** Сбросить курьера и заказы в черновике; шаблон (id) сохраняется */
@@ -176,6 +177,27 @@ type DashboardActions = {
   reorderRouteOrders: (routeId: string, fromIndex: number, toIndex: number) => void
   sendRoute: (routeId: string) => void
   revertRouteToDraft: (routeId: string) => void
+  /** Редактирование sent-маршрута в авторежиме: снять курьера (освобождает курьера) */
+  editSentRouteDetachCourier: (routeId: string) => void
+  /** Редактирование sent-маршрута в авторежиме: назначить курьера (освобождает предыдущего) */
+  editSentRouteAttachCourier: (routeId: string, courierId: string) => void
+  /** Редактирование sent-маршрута в авторежиме: снять заказ (освобождает заказ) */
+  editSentRouteDetachOrder: (routeId: string, orderId: string) => void
+  /** Редактирование sent-маршрута в авторежиме: добавить заказ */
+  editSentRouteAttachOrder: (routeId: string, orderId: string) => void
+  /** Редактирование sent-маршрута в авторежиме: переставить порядок заказов */
+  editSentRouteReorderOrders: (routeId: string, fromIndex: number, toIndex: number) => void
+  startEditingAutoRoutes: () => void
+  /** Отменить редактирование автомаршрутов (без сохранения изменений) */
+  cancelEditingAutoRoutes: () => void
+  /**
+   * Сохранить результаты редактирования автомаршрутов:
+   * — нет курьера + нет заказов → удалить маршрут
+   * — есть курьер + нет заказов → освободить курьера и удалить
+   * — нет курьера + есть заказы → оставить как «Собранный вручную», курьер будет назначен автоматически
+   * — есть курьер + есть заказы → пометить как manual (если был изменён)
+   */
+  saveEditedAutoRoutes: (allRouteIds: string[], modifiedRouteIds: string[]) => void
   resetSeed: () => void
   setOrderStageMin: (stage: keyof OrderStageMin, value: number) => void
   setOrderSlaOption: (index: number, value: number) => void
@@ -187,23 +209,72 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
   persist(
     (set, get) => ({
       ...buildSeedState(),
+      isEditingAutoRoutes: false,
       tick: (deltaMs) => {
         set((state) => {
-          const next = step(state, deltaMs)
-          if (next.routeMode !== 'auto') return next
+          let current = step(state, deltaMs)
+          if (current.routeMode !== 'auto') return current
+          if (current.isEditingAutoRoutes) return current
+
+          /* Pass 1: назначить свободного курьера sent-маршрутам без курьера (результат saveEditedAutoRoutes case 3) */
+          const sentAwaitingCourier = Object.values(current.routes)
+            .filter(
+              (r) =>
+                r.status === 'sent' &&
+                r.step.kind === 'pickup' &&
+                !r.courierId &&
+                r.orderIds.length > 0,
+            )
+            .sort((a, b) => a.createdAt - b.createdAt)
+
+          if (sentAwaitingCourier.length > 0) {
+            const freeCouriersQ = Object.values(current.couriers)
+              .filter((c) => c.status === 'free')
+              .sort((a, b) => (a.freeSince ?? current.now) - (b.freeSince ?? current.now))
+
+            for (let i = 0; i < sentAwaitingCourier.length && i < freeCouriersQ.length; i++) {
+              const route = sentAwaitingCourier[i]
+              const courier = freeCouriersQ[i]
+              const patchedOrders: Record<string, Order> = { ...current.orders }
+              for (const orderId of route.orderIds) {
+                const order = patchedOrders[orderId]
+                if (!order) continue
+                patchedOrders[orderId] = {
+                  ...order,
+                  courierId: courier.id,
+                  routeId: route.id,
+                  ...(order.status === 'ready'
+                    ? { status: 'pickup' as const, statusStartedAt: current.now }
+                    : {}),
+                }
+              }
+              current = {
+                ...current,
+                routes: { ...current.routes, [route.id]: { ...route, courierId: courier.id } },
+                couriers: {
+                  ...current.couriers,
+                  [courier.id]: { ...courier, status: 'assigned', routeId: route.id },
+                },
+                orders: patchedOrders,
+              }
+            }
+          }
+
+          /* Pass 2: обычное авто-назначение — создать новый маршрут из свободных заказов */
           const result = computeAutoAssign(
-            next.couriers,
-            next.orders,
-            next.routes,
-            next.now,
-            next.orderStageMin,
+            current.couriers,
+            current.orders,
+            current.routes,
+            current.now,
+            current.orderStageMin,
+            current.routeStageMin,
           )
-          if (!result) return next
-          const draftRoutes = Object.values(next.routes).filter((r) => r.status === 'draft')
+          if (!result) return current
+          const draftRoutes = Object.values(current.routes).filter((r) => r.status === 'draft')
           const emptyDraft = draftRoutes.find((r) => !r.courierId && r.orderIds.length === 0)
           let routeId = emptyDraft?.id
-          let routes = next.routes
-          let nextRouteId = next.nextRouteId
+          let routes = current.routes
+          let nextRouteId = current.nextRouteId
           if (!routeId) {
             routeId = `route_${nextRouteId}`
             routes = {
@@ -212,82 +283,91 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
                 id: routeId,
                 courierId: '',
                 orderIds: [],
-                createdAt: next.now,
+                createdAt: current.now,
                 status: 'draft',
                 step: { kind: 'pickup', orderIndex: 0 },
               },
             }
             nextRouteId += 1
           }
-          let current = { ...next, routes, nextRouteId }
+          let assign = { ...current, routes, nextRouteId }
           const attachCourier = (rid: string, cid: string) => {
-            const r = current.routes[rid]
+            const r = assign.routes[rid]
             if (!r) return
-            current = {
-              ...current,
+            assign = {
+              ...assign,
               routes: {
-                ...current.routes,
+                ...assign.routes,
                 [rid]: { ...r, courierId: cid },
               },
             }
           }
           const attachOrder = (rid: string, oid: string) => {
-            const r = current.routes[rid]
-            const order = current.orders[oid]
+            const r = assign.routes[rid]
+            const order = assign.orders[oid]
             if (!r || !order || r.status !== 'draft') return
             if (r.orderIds.includes(oid) || r.orderIds.length >= 3) return
-            current = {
-              ...current,
+            assign = {
+              ...assign,
               routes: {
-                ...current.routes,
+                ...assign.routes,
                 [rid]: { ...r, orderIds: [...r.orderIds, oid] },
               },
             }
           }
           attachCourier(routeId, result.courierId)
-          result.orderIds.forEach((oid) => attachOrder(routeId, oid))
-          const route = current.routes[routeId]
-          if (!route?.courierId || route.orderIds.length === 0 || route.orderIds.length > 3) {
-            return next
+          result.orderIds.forEach((oid) => attachOrder(routeId!, oid))
+          const finalRoute = assign.routes[routeId]
+          if (!finalRoute?.courierId || finalRoute.orderIds.length === 0 || finalRoute.orderIds.length > 3) {
+            return current
           }
-          const courier = current.couriers[route.courierId]
-          const firstOrder = current.orders[route.orderIds[0]]
-          if (!courier || !firstOrder) return next
-          const updatedOrders: Record<string, Order> = { ...current.orders }
-          route.orderIds.forEach((orderId) => {
+          const assignedCourier = assign.couriers[finalRoute.courierId]
+          const firstOrder = assign.orders[finalRoute.orderIds[0]]
+          if (!assignedCourier || !firstOrder) return current
+          const isReturningCourier = assignedCourier.status === 'returning'
+          const updatedOrders: Record<string, Order> = { ...assign.orders }
+          finalRoute.orderIds.forEach((orderId) => {
             const order = updatedOrders[orderId]
             if (!order) return
-            const isReady = order.status === 'ready'
-            updatedOrders[orderId] = {
-              ...order,
-              status: isReady ? 'pickup' : order.status,
-              statusStartedAt: isReady ? current.now : order.statusStartedAt,
-              routeId,
-              courierId: courier.id,
+            if (isReturningCourier) {
+              /* Курьер ещё возвращается — резервируем заказы, но не переводим в pickup */
+              updatedOrders[orderId] = {
+                ...order,
+                routeId,
+                courierId: assignedCourier.id,
+              }
+            } else {
+              const isReady = order.status === 'ready'
+              updatedOrders[orderId] = {
+                ...order,
+                status: isReady ? 'pickup' : order.status,
+                statusStartedAt: isReady ? assign.now : order.statusStartedAt,
+                routeId,
+                courierId: assignedCourier.id,
+              }
             }
           })
           const sentRoute: Route = {
-            ...route,
+            ...finalRoute,
             status: 'sent',
             assembly: 'auto',
             step: { kind: 'pickup', orderIndex: 0 },
           }
           const finalRoutes = {
-            ...current.routes,
+            ...assign.routes,
             [routeId]: sentRoute,
           }
           /* В авторежиме не держим пустой шаблон — следующий tick создаст черновик inline при необходимости */
           return {
-            ...current,
+            ...assign,
             routes: finalRoutes,
             nextRouteId,
             couriers: {
-              ...current.couriers,
-              [courier.id]: {
-                ...courier,
-                status: 'assigned',
-                routeId,
-              },
+              ...assign.couriers,
+              [assignedCourier.id]: isReturningCourier
+                ? /* Оставляем курьера в returning — только записываем nextRouteId */
+                  { ...assignedCourier, nextRouteId: routeId }
+                : { ...assignedCourier, status: 'assigned', routeId },
             },
             orders: updatedOrders,
           }
@@ -308,7 +388,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
               state.orders,
               state.couriers,
             )
-            return { ...state, routeMode: mode, routes, orders, couriers }
+            return { ...state, routeMode: mode, isEditingAutoRoutes: false, routes, orders, couriers }
           }
           if (mode === 'manual') {
             let routes: Record<string, Route> = { ...state.routes }
@@ -349,6 +429,12 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           }
           return { ...state, routeMode: mode }
         })
+      },
+      startEditingAutoRoutes: () => {
+        set((state) => ({ ...state, isEditingAutoRoutes: true }))
+      },
+      cancelEditingAutoRoutes: () => {
+        set((state) => ({ ...state, isEditingAutoRoutes: false }))
       },
       createRouteDraft: () => {
         if (get().routeMode === 'auto') {
@@ -629,6 +715,189 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
             couriers: nextCouriers,
             orders: updatedOrders,
           })
+        })
+      },
+      editSentRouteDetachCourier: (routeId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route) return state
+          const nextCouriers = { ...state.couriers }
+          if (route.courierId && state.couriers[route.courierId]) {
+            const courier = nextCouriers[route.courierId]!
+            if (courier.status === 'returning') {
+              /* Курьер ещё возвращается — просто снимаем nextRouteId, не трогаем статус */
+              nextCouriers[route.courierId] = { ...courier, nextRouteId: undefined }
+            } else {
+              nextCouriers[route.courierId] = { ...courier, status: 'free', routeId: undefined }
+            }
+          }
+          return {
+            ...state,
+            routes: { ...state.routes, [routeId]: { ...route, courierId: '' } },
+            couriers: nextCouriers,
+          }
+        })
+      },
+      editSentRouteAttachCourier: (routeId, courierId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route) return state
+          const nextCouriers = { ...state.couriers }
+          /* Освободить предыдущего курьера маршрута */
+          if (route.courierId && route.courierId !== courierId && nextCouriers[route.courierId]) {
+            const prevCourier = nextCouriers[route.courierId]!
+            if (prevCourier.status === 'returning') {
+              nextCouriers[route.courierId] = { ...prevCourier, nextRouteId: undefined }
+            } else {
+              nextCouriers[route.courierId] = { ...prevCourier, status: 'free', routeId: undefined }
+            }
+          }
+          /* Назначить нового курьера */
+          if (courierId && nextCouriers[courierId]) {
+            const newCourier = nextCouriers[courierId]!
+            if (newCourier.status === 'returning') {
+              nextCouriers[courierId] = { ...newCourier, nextRouteId: routeId }
+            } else {
+              nextCouriers[courierId] = { ...newCourier, status: 'assigned', routeId }
+            }
+          }
+          return {
+            ...state,
+            routes: { ...state.routes, [routeId]: { ...route, courierId } },
+            couriers: nextCouriers,
+          }
+        })
+      },
+      editSentRouteDetachOrder: (routeId, orderId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route || !route.orderIds.includes(orderId)) return state
+          const order = state.orders[orderId]
+          const nextOrders = { ...state.orders }
+          if (order) {
+            nextOrders[orderId] = {
+              ...order,
+              routeId: undefined,
+              courierId: undefined,
+              ...(order.status === 'pickup' ? { status: 'ready' as const, statusStartedAt: state.now } : {}),
+            }
+          }
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: { ...route, orderIds: route.orderIds.filter((id) => id !== orderId) },
+            },
+            orders: nextOrders,
+          }
+        })
+      },
+      editSentRouteAttachOrder: (routeId, orderId) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          const order = state.orders[orderId]
+          if (!route || !order) return state
+          if (route.orderIds.includes(orderId) || route.orderIds.length >= 3) return state
+          return {
+            ...state,
+            routes: {
+              ...state.routes,
+              [routeId]: { ...route, orderIds: [...route.orderIds, orderId] },
+            },
+            orders: {
+              ...state.orders,
+              [orderId]: {
+                ...order,
+                routeId,
+                courierId: route.courierId || undefined,
+              },
+            },
+          }
+        })
+      },
+      editSentRouteReorderOrders: (routeId, fromIndex, toIndex) => {
+        set((state) => {
+          const route = state.routes[routeId]
+          if (!route) return state
+          const ids = [...route.orderIds]
+          if (fromIndex < 0 || fromIndex >= ids.length || toIndex < 0 || toIndex >= ids.length) return state
+          if (fromIndex === toIndex) return state
+          const [removed] = ids.splice(fromIndex, 1)
+          ids.splice(toIndex, 0, removed)
+          return {
+            ...state,
+            routes: { ...state.routes, [routeId]: { ...route, orderIds: ids } },
+          }
+        })
+      },
+      saveEditedAutoRoutes: (allRouteIds, modifiedRouteIds) => {
+        set((state) => {
+          const modifiedSet = new Set(modifiedRouteIds)
+          let nextRoutes = { ...state.routes }
+          let nextOrders = { ...state.orders }
+          let nextCouriers = { ...state.couriers }
+
+          for (const routeId of allRouteIds) {
+            const route = nextRoutes[routeId]
+            if (!route) continue
+            const hasCourier = Boolean(route.courierId)
+            const hasOrders = route.orderIds.length > 0
+
+            if (!hasCourier && !hasOrders) {
+              /* Case 1: пустой шаблон → удалить */
+              const { [routeId]: _removed, ...rest } = nextRoutes
+              void _removed
+              nextRoutes = rest
+            } else if (hasCourier && !hasOrders) {
+              /* Case 2: есть курьер, нет заказов → освободить курьера и удалить */
+              const courier = nextCouriers[route.courierId]
+              if (courier) {
+                nextCouriers = {
+                  ...nextCouriers,
+                  [route.courierId]: {
+                    ...courier,
+                    status: 'free',
+                    routeId: undefined,
+                    freeSince: state.now,
+                  },
+                }
+              }
+              const { [routeId]: _removed, ...rest } = nextRoutes
+              void _removed
+              nextRoutes = rest
+            } else if (!hasCourier && hasOrders) {
+              /* Case 3: нет курьера, есть заказы → оставить как «Собранный вручную»,
+                 очистить устаревший courierId у заказов, курьер будет назначен в следующем tick */
+              nextRoutes = {
+                ...nextRoutes,
+                [routeId]: { ...route, assembly: 'manual' as const },
+              }
+              for (const orderId of route.orderIds) {
+                const order = nextOrders[orderId]
+                if (order) {
+                  nextOrders = {
+                    ...nextOrders,
+                    [orderId]: { ...order, courierId: undefined, routeId: routeId },
+                  }
+                }
+              }
+            } else if (hasCourier && hasOrders && modifiedSet.has(routeId)) {
+              /* Case 4: есть курьер и заказы, маршрут изменялся → пометить как manual */
+              nextRoutes = {
+                ...nextRoutes,
+                [routeId]: { ...route, assembly: 'manual' as const },
+              }
+            }
+            /* Case 4 без изменений: оставить как есть */
+          }
+
+          return {
+            ...state,
+            routes: nextRoutes,
+            orders: nextOrders,
+            couriers: nextCouriers,
+            isEditingAutoRoutes: false,
+          }
         })
       },
       resetSeed: () => {

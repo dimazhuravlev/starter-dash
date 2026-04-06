@@ -34,8 +34,8 @@
 
 .delivery__edit-icon {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 16px;
+  height: 16px;
   background-color: var(--fill-6);
   mask: var(--icon-src) center/contain no-repeat;
   -webkit-mask: var(--icon-src) center/contain no-repeat;
@@ -245,4 +245,28 @@
   to {
     transform: translate(-50%, -50%) rotate(-30deg) translateX(68%);
   }
+}
+
+/* Плейсхолдер «Подбираю курьера» с анимированной волной */
+.delivery__courier-pending {
+  background: linear-gradient(
+    90deg,
+    var(--fill-6) 0%,
+    var(--fill-6) 20%,
+    var(--text-2) 45%,
+    var(--fill-6) 70%,
+    var(--fill-6) 100%
+  );
+  background-size: 250% 100%;
+  background-position: 100% 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--fill-6);
+  animation: courier-pending-wave 2s ease-in-out infinite;
+}
+
+@keyframes courier-pending-wave {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -80% 0; }
 }

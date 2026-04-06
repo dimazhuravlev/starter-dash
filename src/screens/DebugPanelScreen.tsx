@@ -164,17 +164,6 @@ export function DebugPanelScreen({
             <div className="stage-editor__group">
               <div className="stage-editor__title">Доставка</div>
               <label className="stage-editor__row">
-                <span>Забор</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={routeStageMin.pickup}
-                  onChange={(event) => setRouteStageValue('pickup', event.target.value)}
-                />
-              </label>
-              <label className="stage-editor__row">
                 <span>В пути</span>
                 <input
                   className="stage-editor__input"
@@ -183,17 +172,6 @@ export function DebugPanelScreen({
                   step="1"
                   value={routeStageMin.enroute}
                   onChange={(event) => setRouteStageValue('enroute', event.target.value)}
-                />
-              </label>
-              <label className="stage-editor__row">
-                <span>Выдача</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={routeStageMin.handoff}
-                  onChange={(event) => setRouteStageValue('handoff', event.target.value)}
                 />
               </label>
               <label className="stage-editor__row">

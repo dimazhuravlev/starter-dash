@@ -33,6 +33,7 @@ export type DashboardLeftPanelProps = {
   setDraftSectionExiting: (value: boolean) => void
   manualAssignedRoutes: Route[]
   autoAssembledRoutes: Route[]
+  manualAssembledInAutoRoutes: Route[]
   recentlyRevertedToDraftRouteIds: string[]
   nextRevertedDraftId: string | null
   recentlySentRouteIds: string[]
@@ -80,6 +81,7 @@ export function DashboardLeftPanel({
   setDraftSectionExiting,
   manualAssignedRoutes,
   autoAssembledRoutes,
+  manualAssembledInAutoRoutes,
   recentlyRevertedToDraftRouteIds,
   nextRevertedDraftId,
   recentlySentRouteIds,
@@ -162,6 +164,7 @@ export function DashboardLeftPanel({
           setDraftSectionExiting={setDraftSectionExiting}
           manualAssignedRoutes={manualAssignedRoutes}
           autoAssembledRoutes={autoAssembledRoutes}
+          manualAssembledInAutoRoutes={manualAssembledInAutoRoutes}
           courierList={courierList}
           couriers={couriers}
           orders={orders}
