@@ -7,8 +7,9 @@ import { DashboardLayout } from './DashboardLayout'
 import { DashboardLeftPanel } from './DashboardLeftPanel'
 import { DashboardMapColumn } from './DashboardMapColumn'
 import { DashboardMobileMap } from './DashboardMobileMap'
+import { useDashboardStore } from '../store/useDashboardStore'
 import { useDashboardMapData } from './useDashboardMapData'
-import { useDashboardMapFocus } from './useDashboardMapFocus'
+import { MAP_COURIER_CAMERA_MAX_ZOOM, useDashboardMapFocus } from './useDashboardMapFocus'
 import { useDashboardResize } from './useDashboardResize'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 
@@ -134,7 +135,19 @@ export function DashboardScreen({
     [sentRoutes],
   )
 
+  const isEditingAutoRoutes = useDashboardStore((s) => s.isEditingAutoRoutes)
+  const mapAllowCourierAssign = routeMode === 'manual' || isEditingAutoRoutes
+  const courierIdsAssignedToDraft = useMemo(
+    () =>
+      Object.values(routes)
+        .filter((r) => r.status === 'draft' && r.courierId)
+        .map((r) => r.courierId),
+    [routes],
+  )
+
   const courierMarkersRef = useRef<CourierMarkerItem[]>([])
+  /** Синхронизируется в MapboxMap — для решения, двигать ли камеру при выборе курьера на карте */
+  const mapZoomRef = useRef(MAP_COURIER_CAMERA_MAX_ZOOM)
   const mapFocus = useDashboardMapFocus({
     routes,
     orders,
@@ -142,8 +155,11 @@ export function DashboardScreen({
     routeMode,
     createRouteDraft,
     attachOrderToRoute,
+    detachCourierFromRoute,
+    attachCourierToRoute,
     resizerJustInteractedRef,
     courierMarkersRef,
+    mapZoomRef,
   })
   const {
     mapFocusCoords,
@@ -159,6 +175,7 @@ export function DashboardScreen({
     handleOrderCardClick,
     handleCourierCardClick,
     handleOrderAddToRouteFromMap,
+    handleCourierAddToRouteFromMap,
     handleMapViewModeChange,
     handleMapClearFocus,
   } = mapFocus
@@ -379,12 +396,15 @@ export function DashboardScreen({
         mapFocusCoords={mapFocusCoords}
         mapFocusBounds={mapFocusBounds}
         onClearFocus={handleMapClearFocus}
-        onOrderAddToRoute={handleOrderAddToRouteFromMap}
+        onOrderAddToRoute={routeMode === 'manual' ? handleOrderAddToRouteFromMap : undefined}
         orderIdsInRoute={orderIdsInRoute}
+        onCourierAddToRoute={mapAllowCourierAssign ? handleCourierAddToRouteFromMap : undefined}
+        courierIdsAssignedToDraft={courierIdsAssignedToDraft}
         onMarkerClick={handleMarkerClick}
         onCourierMarkerClick={handleCourierMarkerClick}
         onMapBackgroundClick={handleMapBackgroundClick}
         routeFlashTrigger={routeFlashTrigger}
+        mapZoomRef={mapZoomRef}
       />
       <DashboardLeftPanel
         routeMode={routeMode}
@@ -454,12 +474,15 @@ export function DashboardScreen({
         mapFocusCoords={mapFocusCoords}
         mapFocusBounds={mapFocusBounds}
         onClearFocus={handleMapClearFocus}
-        onOrderAddToRoute={handleOrderAddToRouteFromMap}
+        onOrderAddToRoute={routeMode === 'manual' ? handleOrderAddToRouteFromMap : undefined}
         orderIdsInRoute={orderIdsInRoute}
+        onCourierAddToRoute={mapAllowCourierAssign ? handleCourierAddToRouteFromMap : undefined}
+        courierIdsAssignedToDraft={courierIdsAssignedToDraft}
         onMarkerClick={handleMarkerClick}
         onCourierMarkerClick={handleCourierMarkerClick}
         onMapBackgroundClick={handleMapBackgroundClick}
         routeFlashTrigger={routeFlashTrigger}
+        mapZoomRef={mapZoomRef}
       />
     </DashboardLayout>
   )

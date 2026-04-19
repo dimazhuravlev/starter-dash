@@ -59,6 +59,7 @@
   font-style: normal;
   text-transform: none;
   cursor: pointer;
+  transition: color 150ms ease;
 }
 
 .tab:hover {

@@ -8,6 +8,9 @@ type MapFocusBounds = {
   ne: { lat: number; lng: number }
 }
 
+/** Автозум/позиционирование при действиях с курьером на карте — только если текущий зум карты ≤ этого значения */
+export const MAP_COURIER_CAMERA_MAX_ZOOM = 13
+
 type UseDashboardMapFocusParams = {
   routes: Record<string, Route>
   orders: Record<string, Order>
@@ -15,9 +18,13 @@ type UseDashboardMapFocusParams = {
   routeMode: 'auto' | 'manual'
   createRouteDraft: () => string
   attachOrderToRoute: (routeId: string, orderId: string) => void
+  detachCourierFromRoute: (routeId: string) => void
+  attachCourierToRoute: (routeId: string, courierId: string) => void
   resizerJustInteractedRef: MutableRefObject<boolean>
   /** Ref с актуальными маркерами курьеров (обновляется после useDashboardMapData) */
   courierMarkersRef: MutableRefObject<CourierMarkerItem[]>
+  /** Текущий getZoom() карты — обновляется в MapboxMap */
+  mapZoomRef: MutableRefObject<number>
 }
 
 export function useDashboardMapFocus({
@@ -27,9 +34,13 @@ export function useDashboardMapFocus({
   routeMode,
   createRouteDraft,
   attachOrderToRoute,
+  detachCourierFromRoute,
+  attachCourierToRoute,
   resizerJustInteractedRef,
   courierMarkersRef,
+  mapZoomRef,
 }: UseDashboardMapFocusParams) {
+  const isEditingAutoRoutes = useDashboardStore((s) => s.isEditingAutoRoutes)
   const [mapFocusCoords, setMapFocusCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [highlightedOrderIdFromMap, setHighlightedOrderIdFromMap] = useState<string | null>(null)
   const [highlightedCourierIdFromMap, setHighlightedCourierIdFromMap] = useState<string | null>(null)
@@ -51,26 +62,33 @@ export function useDashboardMapFocus({
     }
   }, [])
 
-  const focusMapOnRoute = useCallback((routeId: string) => {
-    const state = useDashboardStore.getState()
-    const route = state.routes[routeId]
-    if (!route?.orderIds.length) return
-    setHighlightedOrderIdFromMap(null)
-    setFocusedRouteId(routeId)
-    const orderCoords = route.orderIds
-      .map((id) => state.orders[id]?.coords)
-      .filter((c): c is { lat: number; lng: number } => c != null)
-    if (orderCoords.length === 0) return
-    const coords = [RESTAURANT_COORDS, ...orderCoords].map((c) => ({ lng: c.lng, lat: c.lat }))
-    setFocusedRoutePathCoords(coords)
-    setMapFocusCoords(null)
-    const lngs = coords.map((c) => c.lng)
-    const lats = coords.map((c) => c.lat)
-    setMapFocusBounds({
-      sw: { lng: Math.min(...lngs), lat: Math.min(...lats) },
-      ne: { lng: Math.max(...lngs), lat: Math.max(...lats) },
-    })
-  }, [])
+  const focusMapOnRoute = useCallback(
+    (routeId: string, options?: { skipCamera?: boolean }) => {
+      const state = useDashboardStore.getState()
+      const route = state.routes[routeId]
+      if (!route?.orderIds.length) return
+      setHighlightedOrderIdFromMap(null)
+      setFocusedRouteId(routeId)
+      const orderCoords = route.orderIds
+        .map((id) => state.orders[id]?.coords)
+        .filter((c): c is { lat: number; lng: number } => c != null)
+      if (orderCoords.length === 0) return
+      const coords = [RESTAURANT_COORDS, ...orderCoords].map((c) => ({ lng: c.lng, lat: c.lat }))
+      setFocusedRoutePathCoords(coords)
+      setMapFocusCoords(null)
+      if (options?.skipCamera) {
+        setMapFocusBounds(null)
+      } else {
+        const lngs = coords.map((c) => c.lng)
+        const lats = coords.map((c) => c.lat)
+        setMapFocusBounds({
+          sw: { lng: Math.min(...lngs), lat: Math.min(...lats) },
+          ne: { lng: Math.max(...lngs), lat: Math.max(...lats) },
+        })
+      }
+    },
+    [],
+  )
 
   const handleMarkerClick = useCallback(
     (marker: { id: string }) => {
@@ -138,19 +156,25 @@ export function useDashboardMapFocus({
         route.step.kind !== 'returning' &&
         route.orderIds.length > 0
 
+      const skipCourierCamera = mapZoomRef.current > MAP_COURIER_CAMERA_MAX_ZOOM
+
       if (routeIsActive && route) {
-        focusMapOnRoute(route.id)
+        focusMapOnRoute(route.id, { skipCamera: skipCourierCamera })
         setHighlightedCourierIdFromMap(marker.id)
       } else {
         setFocusedRouteId(null)
         setMapFocusBounds(null)
         setFocusedRoutePathCoords(null)
         setHighlightedCourierIdFromMap((prev) => (prev === marker.id ? null : marker.id))
-        const current = courierMarkersRef.current.find((m) => m.id === marker.id)
-        setMapFocusCoords(current ? { lat: current.lat, lng: current.lng } : { lat: marker.lat, lng: marker.lng })
+        if (skipCourierCamera) {
+          setMapFocusCoords(null)
+        } else {
+          const current = courierMarkersRef.current.find((m) => m.id === marker.id)
+          setMapFocusCoords(current ? { lat: current.lat, lng: current.lng } : { lat: marker.lat, lng: marker.lng })
+        }
       }
     },
-    [focusMapOnRoute],
+    [focusMapOnRoute, mapZoomRef],
   )
 
   const handleOrderCardClick = useCallback(
@@ -211,6 +235,48 @@ export function useDashboardMapFocus({
     [routeMode, draftRoutes, createRouteDraft, attachOrderToRoute, focusMapOnRoute],
   )
 
+  /** Курьер с карты в черновик: шаблон с заказами без курьера, иначе пустой шаблон, иначе createRouteDraft */
+  const handleCourierAddToRouteFromMap = useCallback(
+    (courierId: string) => {
+      if (routeMode !== 'manual' && !isEditingAutoRoutes) return
+
+      const allDrafts = Object.values(routes)
+        .filter((r) => r.status === 'draft')
+        .sort((a, b) => a.createdAt - b.createdAt)
+
+      const withOrdersNoCourier = allDrafts.find((r) => r.orderIds.length > 0 && !r.courierId)
+      const emptyOnly = allDrafts.find((r) => !r.courierId && r.orderIds.length === 0)
+      let routeId = withOrdersNoCourier?.id ?? emptyOnly?.id ?? ''
+      if (!routeId) {
+        routeId = createRouteDraft()
+        if (!routeId) return
+      }
+
+      const prevDraft = allDrafts.find((r) => r.courierId === courierId)
+      if (prevDraft && prevDraft.id !== routeId) {
+        detachCourierFromRoute(prevDraft.id)
+      }
+
+      attachCourierToRoute(routeId, courierId)
+      setHighlightedCourierIdFromMap(null)
+      const skipCourierCamera = mapZoomRef.current > MAP_COURIER_CAMERA_MAX_ZOOM
+      focusMapOnRoute(routeId, { skipCamera: skipCourierCamera })
+      requestAnimationFrame(() => {
+        if (mountedRef.current) setHighlightedCourierIdFromMap(courierId)
+      })
+    },
+    [
+      routeMode,
+      isEditingAutoRoutes,
+      routes,
+      createRouteDraft,
+      detachCourierFromRoute,
+      attachCourierToRoute,
+      focusMapOnRoute,
+      mapZoomRef,
+    ],
+  )
+
   const handleMapViewModeChange = useCallback((mode: MapViewMode) => {
     if (mode === 'none' && resizerJustInteractedRef.current) return
     setMapViewMode(mode)
@@ -239,6 +305,7 @@ export function useDashboardMapFocus({
     handleOrderCardClick,
     handleCourierCardClick,
     handleOrderAddToRouteFromMap,
+    handleCourierAddToRouteFromMap,
     handleMapViewModeChange,
     handleMapClearFocus,
   }

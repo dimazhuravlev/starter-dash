@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type MutableRefObject } from 'react'
 import mapboxgl from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { useDirectionsRoute, emptyRouteGeoJSON, type RoutePathCoord } from '../hooks/useDirectionsRoute'
@@ -22,10 +22,14 @@ const RESTAURANT_FOCUS_ZOOM = 13
 const FLY_DURATION_MS = 1200
 const FIT_BOUNDS_PADDING_PX = 80
 const FIT_BOUNDS_DURATION_MS = 800
-/** При зуме ≤ этого значения показываем только точку 12px без подписи */
-const ZOOM_COMPACT_THRESHOLD = 12
+/** Микро-маркеры при zoom ≤ этого значения */
+const ZOOM_MICRO_MAX = 10
+/** Подписи (адрес заказа, фамилия курьера) при zoom ≥ этого значения; между микро и этим — крупные маркеры без текста */
+const ZOOM_LABELS_MIN = 12
 const MARKER_OFFSET_FULL = 9
 const MARKER_OFFSET_COMPACT = 6
+/** Сдвиг попапа «Назначить на маршрут» вверх от точки курьера (px), чтобы не перекрывать маркер */
+const COURIER_ASSIGN_POPUP_OFFSET_Y = -36
 
 function getMapboxToken(): string | undefined {
   const fromEnv = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim()
@@ -50,11 +54,9 @@ export type MapMarkerItem = {
   routePosition?: number
   /** Заказ доставлен — в капсуле показывается иконка Done (как в карточке доставки) */
   isDelivered?: boolean
-  /** Заказ в назначенном/активном маршруте, маршрут не выделен — показывать маркер с opacity 0.5 */
-  isDimmed?: boolean
 }
 
-/** Маркер курьера на карте: иконка типа (пеший/вело/авто) 16px зелёный + подпись фамилии */
+/** Маркер курьера на карте (Figma «courier mark» 2252:22560): ореол 56px, pin 28×28 r14, бордер 1.5px, иконка 16px, подпись 12/14 */
 export type CourierMarkerItem = {
   id: string
   lng: number
@@ -91,6 +93,10 @@ type MapboxMapProps = {
   onOrderAddToRoute?: (orderId: string) => void
   /** Id заказов, уже добавленных в какой-либо маршрут — для них тултип «Добавить в маршрут» не показывается */
   orderIdsInRoute?: string[]
+  /** При клике «Назначить на маршрут» у маркера курьера — привязать к черновику (ручной режим / редактирование авто) */
+  onCourierAddToRoute?: (courierId: string) => void
+  /** Id курьеров, уже назначенных на черновик — попап назначения не показываем */
+  courierIdsAssignedToDraft?: string[]
   /** Вызывается при тапе/клике по маркеру заказа (для подсветки карточки заказа) */
   onMarkerClick?: (marker: MapMarkerItem) => void
   /** Вызывается при клике по карте (не по маркеру/попапу) — например для сброса подсветки карточки */
@@ -109,6 +115,8 @@ type MapboxMapProps = {
   hideViewSelector?: boolean
   /** Тема интерфейса (при смене меняется lightPreset: day / night в стиле Standard) */
   theme?: 'dark' | 'light'
+  /** Текущий уровень зума (обновляется при zoom / moveend) — для логики «не двигать камеру» при зуме > порога */
+  mapZoomRef?: MutableRefObject<number>
 }
 
 export type MapViewMode = 'half' | 'none'
@@ -122,8 +130,7 @@ function createMarkerElement(
   onMarkerClick?: (marker: MapMarkerItem) => void,
 ): HTMLDivElement {
   const wrap = document.createElement('div')
-  wrap.className = 'mapbox-order-marker' + (marker.isDimmed ? ' mapbox-order-marker--dimmed' : '')
-  wrap.style.opacity = marker.isDimmed ? '0.3' : ''
+  wrap.className = 'mapbox-order-marker'
   wrap.setAttribute('data-order-id', marker.id)
   if (onMarkerClick) wrap.style.cursor = 'pointer'
   const pill = document.createElement('span')
@@ -172,6 +179,26 @@ function createMarkerPopupContent(
   return wrap
 }
 
+function createCourierAssignPopupContent(
+  courierId: string,
+  onAssign: (courierId: string) => void,
+  popup: mapboxgl.Popup,
+): HTMLDivElement {
+  const wrap = document.createElement('div')
+  wrap.className = 'mapbox-marker-popup'
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'mapbox-marker-popup__btn'
+  btn.textContent = 'Назначить на маршрут'
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    onAssign(courierId)
+    popup.remove()
+  })
+  wrap.appendChild(btn)
+  return wrap
+}
+
 function createRestaurantMarkerElement(): HTMLDivElement {
   const wrap = document.createElement('div')
   wrap.className = 'mapbox-restaurant-marker'
@@ -201,16 +228,27 @@ function createCourierMarkerElement(
     wrap.style.cursor = 'pointer'
     wrap.style.pointerEvents = 'auto'
   }
+  const visual = document.createElement('div')
+  visual.className = 'mapbox-courier-marker__visual'
+  const halo = document.createElement('div')
+  halo.className = 'mapbox-courier-marker__halo'
+  halo.setAttribute('aria-hidden', 'true')
+  const pin = document.createElement('div')
+  pin.className = 'mapbox-courier-marker__pin'
   const icon = document.createElement('img')
   icon.className = 'mapbox-courier-marker__icon'
   icon.src = COURIER_TYPE_ICONS[courier.type]
   icon.width = 16
   icon.height = 16
   icon.alt = ''
+  icon.draggable = false
+  pin.appendChild(icon)
+  visual.appendChild(halo)
+  visual.appendChild(pin)
   const label = document.createElement('span')
   label.className = 'mapbox-courier-marker__label'
   label.textContent = courier.surname
-  wrap.appendChild(icon)
+  wrap.appendChild(visual)
   wrap.appendChild(label)
   if (onCourierMarkerClick) {
     wrap.addEventListener('click', (e) => {
@@ -221,25 +259,65 @@ function createCourierMarkerElement(
   return wrap
 }
 
-/** Единое условие и параметры для переключения маркеров по масштабу карты */
-function getMarkerZoomState(map: mapboxgl.Map): { isCompact: boolean; offsetY: number } {
+/** Три режима: микро (z≤10), крупные без подписей (10<z<12), полные с текстом (z≥12) */
+function getMarkerZoomState(map: mapboxgl.Map): {
+  isCompact: boolean
+  showLabels: boolean
+  offsetY: number
+} {
   const zoom = map.getZoom()
-  const isCompact = zoom <= ZOOM_COMPACT_THRESHOLD
+  const isCompact = zoom <= ZOOM_MICRO_MAX
+  const showLabels = zoom >= ZOOM_LABELS_MIN
   const offsetY = isCompact ? MARKER_OFFSET_COMPACT : MARKER_OFFSET_FULL
-  return { isCompact, offsetY }
+  return { isCompact, showLabels, offsetY }
+}
+
+/** Поля, от которых зависит DOM-структура маркера (без SLA — они меняются каждую секунду с tick(now) и не должны пересоздавать узлы). */
+function getOrderMarkersLayoutKey(markers: MapMarkerItem[]): string {
+  return [...markers]
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map(
+      (m) =>
+        `${m.id}\u0001${m.lng}\u0001${m.lat}\u0001${m.address}\u0001${m.isDelivered ? 1 : 0}\u0001${m.routePosition ?? ''}`,
+    )
+    .join('\u0002')
+}
+
+/** Обновить текст SLA и класс просрочки на уже смонтированных маркерах (без remove/add). */
+function syncOrderMarkerSlaDisplay(markers: MapMarkerItem[], markerInstances: mapboxgl.Marker[]) {
+  const byId = new Map(markers.map((m) => [m.id, m]))
+  for (const mapMarker of markerInstances) {
+    const el = mapMarker.getElement()
+    if (!el) continue
+    const orderId = el.getAttribute('data-order-id')
+    if (orderId == null) continue
+    const m = byId.get(orderId)
+    if (!m || m.isDelivered) continue
+    const pill = el.querySelector('.mapbox-order-marker__pill')
+    const pillNum = el.querySelector('.mapbox-order-marker__pill-num')
+    if (!pill || !pillNum || !(pillNum instanceof HTMLElement)) continue
+    pillNum.textContent = m.slaLabel
+    pill.classList.toggle('mapbox-order-marker__pill--overdue', m.isOverdue)
+  }
 }
 
 function updateOrderMarkersByZoom(
   markerInstances: mapboxgl.Marker[],
-  state: { isCompact: boolean; offsetY: number },
+  state: { isCompact: boolean; showLabels: boolean; offsetY: number },
 ) {
   markerInstances.forEach((m) => {
     const el = m.getElement()
     if (!el) return
     if (state.isCompact) {
       el.classList.add('mapbox-order-marker--compact')
+      el.classList.remove('mapbox-order-marker--hide-label')
     } else {
       el.classList.remove('mapbox-order-marker--compact')
+      if (!state.showLabels) {
+        el.classList.add('mapbox-order-marker--hide-label')
+      } else {
+        el.classList.remove('mapbox-order-marker--hide-label')
+      }
     }
     m.setOffset([0, state.offsetY])
   })
@@ -261,18 +339,34 @@ function updateRestaurantMarkerByZoom(
 
 function updateCourierMarkersByZoom(
   markerInstances: mapboxgl.Marker[],
-  state: { isCompact: boolean; offsetY: number },
+  state: { isCompact: boolean; showLabels: boolean; offsetY: number },
 ) {
   markerInstances.forEach((m) => {
     const el = m.getElement()
     if (!el) return
     if (state.isCompact) {
       el.classList.add('mapbox-courier-marker--compact')
+      el.classList.remove('mapbox-courier-marker--hide-label')
     } else {
       el.classList.remove('mapbox-courier-marker--compact')
+      if (!state.showLabels) {
+        el.classList.add('mapbox-courier-marker--hide-label')
+      } else {
+        el.classList.remove('mapbox-courier-marker--hide-label')
+      }
     }
-    m.setOffset([0, state.offsetY])
+    /* Якорь center — смещение по Y не нужно */
+    m.setOffset([0, 0])
   })
+}
+
+/** Ресторан поверх заказов/курьеров: у Mapbox маркеры — соседи в DOM; z-index на дочернем div не помогает, нужен порядок отрисовки */
+function bringRestaurantMarkerToFront(restaurantMarker: mapboxgl.Marker | null) {
+  if (!restaurantMarker) return
+  const el = restaurantMarker.getElement()
+  const parent = el.parentNode
+  /* Не трогаем DOM, если ресторан уже последний — лишний appendChild даёт лишний repaint */
+  if (parent && parent.lastChild !== el) parent.appendChild(el)
 }
 
 function updateAllMarkersByZoom(
@@ -285,6 +379,7 @@ function updateAllMarkersByZoom(
   updateOrderMarkersByZoom(orderMarkers, state)
   updateRestaurantMarkerByZoom(restaurantMarker, state)
   updateCourierMarkersByZoom(courierMarkers, state)
+  bringRestaurantMarkerToFront(restaurantMarker)
 }
 
 const MAP_VIEW_MODES: { value: MapViewMode; icon: string; title: string }[] = [
@@ -311,8 +406,11 @@ export function MapboxMap({
   onMapViewModeChange,
   courierMarkers = [],
   onCourierMarkerClick,
+  onCourierAddToRoute,
+  courierIdsAssignedToDraft = [],
   hideViewSelector = false,
   theme = 'dark',
+  mapZoomRef,
 }: MapboxMapProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -324,6 +422,10 @@ export function MapboxMap({
   const popupRef = useRef<mapboxgl.Popup | null>(null)
   const popupOpenedAtRef = useRef(0)
   const popupMarkerIdRef = useRef<string | null>(null)
+  const popupCourierIdRef = useRef<string | null>(null)
+  const onCourierAddToRouteRef = useRef(onCourierAddToRoute)
+  const courierIdsAssignedToDraftRef = useRef(courierIdsAssignedToDraft)
+  const onCourierMarkerClickRef = useRef(onCourierMarkerClick)
   const [mapReady, setMapReady] = useState(false)
   const [mapContentHidden, setMapContentHidden] = useState(false)
   const [mapViewModeInternal, setMapViewModeInternal] = useState<MapViewMode>('half')
@@ -353,6 +455,11 @@ export function MapboxMap({
   useEffect(() => {
     onMapBackgroundClickRef.current = onMapBackgroundClick
   }, [onMapBackgroundClick])
+  useEffect(() => {
+    onCourierAddToRouteRef.current = onCourierAddToRoute
+  }, [onCourierAddToRoute])
+  courierIdsAssignedToDraftRef.current = courierIdsAssignedToDraft
+  onCourierMarkerClickRef.current = onCourierMarkerClick
 
   useEffect(() => {
     if (!mapboxToken) {
@@ -472,6 +579,7 @@ export function MapboxMap({
       setMapReady(false)
       onClearFocusRef.current = () => {}
       onOrderAddToRouteRef.current = undefined
+      onCourierAddToRouteRef.current = undefined
       onMapBackgroundClickRef.current = () => {}
       resizeObserver.disconnect()
       if (resizeRafId !== null) cancelAnimationFrame(resizeRafId)
@@ -505,6 +613,21 @@ export function MapboxMap({
       // dark-v11 может не поддерживать line-emissive-strength
     }
   }, [theme, mapReady])
+
+  useEffect(() => {
+    if (!mapRef.current || !mapReady || !mapZoomRef) return
+    const map = mapRef.current
+    const sync = () => {
+      mapZoomRef.current = map.getZoom()
+    }
+    sync()
+    map.on('zoom', sync)
+    map.on('moveend', sync)
+    return () => {
+      map.off('zoom', sync)
+      map.off('moveend', sync)
+    }
+  }, [mapReady, mapZoomRef])
 
   useEffect(() => {
     if (mapViewMode === 'none' || !focusCoords || !mapRef.current) return
@@ -575,6 +698,7 @@ export function MapboxMap({
       if (popupRef.current) {
         popupRef.current.remove()
         popupMarkerIdRef.current = null
+        popupCourierIdRef.current = null
       }
     }
 
@@ -643,14 +767,18 @@ export function MapboxMap({
       popup.remove()
       popupRef.current = null
       popupMarkerIdRef.current = null
+      popupCourierIdRef.current = null
     }
   }, [mapReady])
 
-  /** Синхронизируем класс --dimmed на уже отрисованных маркерах (при смене выделенного маршрута) */
-  const dimmedStateKey = useMemo(
-    () => markers.map((m) => `${m.id}:${m.isDimmed ? 1 : 0}`).join(','),
-    [markers],
-  )
+  const orderMarkersLayoutKey = getOrderMarkersLayoutKey(markers)
+  const orderMarkersSlaSyncKey = markers
+    .map((m) => `${m.id}:${m.slaLabel}:${m.isOverdue ? 1 : 0}`)
+    .sort()
+    .join('|')
+  const markersForSlaSyncRef = useRef(markers)
+  markersForSlaSyncRef.current = markers
+
   useEffect(() => {
     if (!mapRef.current || !mapReady) return
     const map = mapRef.current
@@ -670,6 +798,7 @@ export function MapboxMap({
       const popup = popupRef.current
       if (!popup || !onOrderAddToRouteRef.current) return
       if (orderIdsInRouteSet?.has(m.id) || m.isDelivered) return
+      popup.setOffset([0, 0])
       popup.setLngLat([m.lng, m.lat])
       popup.setDOMContent(
         createMarkerPopupContent(
@@ -681,6 +810,7 @@ export function MapboxMap({
       popup.addTo(map)
       popupOpenedAtRef.current = Date.now()
       popupMarkerIdRef.current = m.id
+      popupCourierIdRef.current = null
     }
     const handleMarkerClick = (m: MapMarkerItem) => {
       if (popupRef.current && popupMarkerIdRef.current === m.id) {
@@ -693,12 +823,8 @@ export function MapboxMap({
     }
     byCoords.forEach((group) => {
       const first = group[0]
-      const mergedMarker: MapMarkerItem = {
-        ...first,
-        isDimmed: group.some((m) => m.isDimmed),
-      }
       const el = createMarkerElement(
-        mergedMarker,
+        first,
         onOrderAddToRoute || onMarkerClick ? handleMarkerClick : undefined,
       )
       const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
@@ -712,33 +838,13 @@ export function MapboxMap({
       markersRef.current.forEach((m) => m.remove())
       markersRef.current = []
     }
-  }, [markers, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick, dimmedStateKey])
+  }, [orderMarkersLayoutKey, mapReady, onOrderAddToRoute, orderIdsInRoute, onMarkerClick])
 
-  /** Синхронизируем класс --dimmed и opacity на уже отрисованных маркерах (при смене выделенного маршрута) */
+  /** SLA на маркерах: обновляем без пересоздания DOM (tick(now) меняет label раз в минуту и реже). */
   useEffect(() => {
-    if (!mapReady || !markers.length) return
-    const key = (lng: number, lat: number) => `${lng.toFixed(6)},${lat.toFixed(6)}`
-    const byCoords = new Map<string, MapMarkerItem[]>()
-    for (const m of markers) {
-      const k = key(m.lng, m.lat)
-      const list = byCoords.get(k) ?? []
-      list.push(m)
-      byCoords.set(k, list)
-    }
-    const idToDimmed = new Map<string, boolean>()
-    byCoords.forEach((group) => {
-      const dimmed = group.some((m) => !!m.isDimmed)
-      group.forEach((m) => idToDimmed.set(m.id, dimmed))
-    })
-    markersRef.current.forEach((mapMarker) => {
-      const el = mapMarker.getElement()
-      const orderId = el?.getAttribute('data-order-id')
-      if (orderId == null) return
-      const dimmed = idToDimmed.get(orderId) ?? false
-      el?.classList.toggle('mapbox-order-marker--dimmed', dimmed)
-      if (el) (el as HTMLElement).style.opacity = dimmed ? '0.3' : ''
-    })
-  }, [mapReady, markers, dimmedStateKey])
+    if (!mapReady || markersRef.current.length === 0) return
+    syncOrderMarkerSlaDisplay(markersForSlaSyncRef.current, markersRef.current)
+  }, [mapReady, orderMarkersSlaSyncKey])
 
   /** Синхронизация маркеров курьеров: обновляем позиции вместо пересоздания (для плавного движения по маршруту) */
   useEffect(() => {
@@ -747,15 +853,62 @@ export function MapboxMap({
     const byId = courierMarkersByIdRef.current
     const newIds = new Set(courierMarkers.map((c) => c.id))
 
+    const openCourierPopup = (c: CourierMarkerItem) => {
+      const popup = popupRef.current
+      if (!popup || !onCourierAddToRouteRef.current) return
+      if (courierIdsAssignedToDraftRef.current.includes(c.id)) return
+      popup.setOffset([0, COURIER_ASSIGN_POPUP_OFFSET_Y])
+      popup.setLngLat([c.lng, c.lat])
+      popup.setDOMContent(
+        createCourierAssignPopupContent(c.id, (id) => {
+          onCourierAddToRouteRef.current?.(id)
+          popup.remove()
+          popupCourierIdRef.current = null
+        }, popup),
+      )
+      popup.addTo(map)
+      popupOpenedAtRef.current = Date.now()
+      popupCourierIdRef.current = c.id
+      popupMarkerIdRef.current = null
+    }
+
+    const handleCourierTap = (c: CourierMarkerItem) => {
+      /* Маркер двигается через setLngLat при обновлении данных, а замыкание в createCourierMarkerElement
+       * держит старый объект c — иначе попап открывается в прошлых координатах и «догоняет» маркер на следующем тике. */
+      const mapMarker = byId.get(c.id)
+      const live = mapMarker?.getLngLat()
+      const cNow: CourierMarkerItem = live ? { ...c, lng: live.lng, lat: live.lat } : c
+
+      if (popupRef.current && popupCourierIdRef.current === cNow.id) {
+        popupRef.current.remove()
+        popupCourierIdRef.current = null
+        return
+      }
+      if (onCourierAddToRouteRef.current && !courierIdsAssignedToDraftRef.current.includes(cNow.id)) {
+        openCourierPopup(cNow)
+      }
+      onCourierMarkerClickRef.current?.(cNow)
+    }
+
     for (const c of courierMarkers) {
       const existing = byId.get(c.id)
       if (existing) {
         existing.setLngLat([c.lng, c.lat])
+        if (popupCourierIdRef.current === c.id && popupRef.current) {
+          try {
+            popupRef.current.setLngLat([c.lng, c.lat])
+          } catch {
+            // попап мог быть снят с карты
+          }
+        }
       } else {
-        const el = createCourierMarkerElement(c, onCourierMarkerClick)
-        const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'top' })
+        const el = createCourierMarkerElement(
+          c,
+          onCourierAddToRoute || onCourierMarkerClick ? handleCourierTap : undefined,
+        )
+        const mapMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
           .setLngLat([c.lng, c.lat])
-          .setOffset([0, MARKER_OFFSET_FULL])
+          .setOffset([0, 0])
           .addTo(map)
         byId.set(c.id, mapMarker)
       }
@@ -771,8 +924,12 @@ export function MapboxMap({
     toRemove.forEach((id) => byId.delete(id))
 
     courierMarkersRef.current = Array.from(byId.values())
-    updateAllMarkersByZoom(map, markersRef.current, restaurantMarkerRef.current, courierMarkersRef.current)
-  }, [courierMarkers, mapReady, onCourierMarkerClick])
+    /* Только курьеры и z-order ресторана: не вызываем updateOrderMarkersByZoom/updateRestaurantMarkerByZoom
+       на каждом tick(now) — иначе setOffset/classList на заказах каждую секунду и маркеры «моргают». */
+    const state = getMarkerZoomState(map)
+    updateCourierMarkersByZoom(courierMarkersRef.current, state)
+    bringRestaurantMarkerToFront(restaurantMarkerRef.current)
+  }, [courierMarkers, mapReady])
 
   useEffect(() => {
     return () => {

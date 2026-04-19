@@ -20,8 +20,10 @@ const emptyRouteGeoJSON = (): GeoJSON.FeatureCollection<GeoJSON.LineString> => (
   ],
 })
 
+/** Округление в ключе кэша — иначе при любых дробных колебаниях координат эффект перезапускается и дергает fitBounds (маркеры «моргают»). Запрос Directions по-прежнему шлёт полные координаты. */
 function buildCacheKey(coords: RoutePathCoord[]): string {
-  return `${DIRECTIONS_PROFILE}|${coords.map((c) => `${c.lng},${c.lat}`).join(';')}`
+  const rounded = coords.map((c) => `${c.lng.toFixed(6)},${c.lat.toFixed(6)}`).join(';')
+  return `${DIRECTIONS_PROFILE}|${rounded}`
 }
 
 async function fetchDirections(
@@ -240,8 +242,8 @@ export function useDirectionsRoute({
       }
       const cached = cacheRef.current[key]
       if (cached) {
+        /* Уже применили эту геометрию — не вызывать fitBounds снова: повторный fitBounds даёт постоянную анимацию карты и визуальное дрожание HTML-маркеров поверх canvas. */
         if (lastCoordsKeyRef.current === key) {
-          safeMapOp(() => fitMapToRoute(map, coords))
           return
         }
         const coordsArr = cached.coordinates as [number, number][]

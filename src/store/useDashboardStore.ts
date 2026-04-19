@@ -480,7 +480,8 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
         })
       },
       createRouteDraft: () => {
-        if (get().routeMode === 'auto') {
+        const s = get()
+        if (s.routeMode === 'auto' && !s.isEditingAutoRoutes) {
           return ''
         }
         const before = get()

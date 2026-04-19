@@ -5,7 +5,7 @@
   align-items: flex-end;
   padding: 0 0 0 16px;
   border-bottom: 1px solid var(--stroke-2);
-  overflow: hidden;
+  /* vertical overflow не hidden — иначе срезается нижняя граница таба (2px) */
   min-width: 0;
   box-sizing: border-box;
 }
@@ -20,14 +20,12 @@
   max-height: 100%;
   flex: 1 1 0%;
   overflow-x: auto;
-  overflow-y: hidden;
   overscroll-behavior-x: contain;
-  overscroll-behavior-y: none;
 }
 
 .app-subheader__tab {
   position: relative;
-  margin: 0 0 -1px 0;
+  margin: 0;
   padding: 0 0 8px 0;
   border: none;
   border-bottom: 2px solid transparent;
@@ -37,7 +35,7 @@
   font-style: normal;
   white-space: nowrap;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color 150ms ease, border-color 150ms ease;
 }
 
 .app-subheader__tab-label {
@@ -51,7 +49,7 @@
   border-radius: 6px;
   background-color: transparent;
   z-index: -1;
-  transition: background-color 0.2s ease;
+  transition: background-color 150ms ease;
 }
 
 .app-subheader__tab:hover {
@@ -64,5 +62,5 @@
 
 .app-subheader__tab--active {
   color: var(--text-1);
-  border-bottom-color: currentColor;
+  border-bottom: 2px solid currentColor;
 }

@@ -51,7 +51,8 @@ export function useDashboardResize(isMobileMapOpen: boolean) {
   const [rightColumnWidth, setRightColumnWidth] = useState<number | null>(getStoredRightColumnWidth)
   const [dashboardWidth, setDashboardWidth] = useState<number | null>(null)
   const [isResizing, setIsResizing] = useState(false)
-  const [isUserResized, setIsUserResized] = useState(false)
+  /** Если в localStorage уже есть ширина — не перетирать её «дефолтом от вьюпорта» при монтировании. */
+  const [isUserResized, setIsUserResized] = useState(() => getStoredRightColumnWidth() !== null)
 
   const syncLeftWrapperScroll = useCallback(() => {
     const wrapper = leftWrapperRef.current

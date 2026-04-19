@@ -3,6 +3,8 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  /* Совпадает с фоном приложения, пока не отрисованы тайлы / canvas */
+  background-color: var(--surface-0);
 }
 
 .mapbox-map-wrapper--collapsed {
@@ -38,6 +40,12 @@
   width: 100%;
   height: 100%;
   min-height: 0;
+  background-color: var(--surface-0);
+}
+
+.mapbox-map-container .mapboxgl-map,
+.mapbox-map-container .mapboxgl-canvas-container {
+  background-color: var(--surface-0);
 }
 
 /* Скрыть логотип Mapbox и блок legal в углу карты */
@@ -259,18 +267,17 @@
   align-items: center;
   gap: 4px;
   pointer-events: auto;
-}
-
-/* Заказ не в активном маршруте — бледный маркер при видимой линии маршрута */
-.mapbox-order-marker--dimmed {
-  opacity: 0.3;
+  transform: translateY(2px);
+  transition:
+    gap 400ms ease,
+    opacity 300ms ease-out;
 }
 
 /* Капсула заказа на карте: зелёный/красный фон, белая цифра, бордер 1.5px */
 .mapbox-order-marker__pill {
   position: relative;
   display: inline-flex;
-  height: 17px;
+  height: 19px;
   min-width: 20px;
   padding: 0 6px;
   justify-content: flex-end;
@@ -278,45 +285,65 @@
   gap: 8px;
   border-radius: 16px;
   background: var(--success);
-  color: var(--text-1);
+  color: #fff;
   text-align: center;
   font: var(--type-subtitle);
   font-style: normal;
   box-sizing: border-box;
   flex-shrink: 0;
   border: 1.5px solid var(--text-1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  transition:
+    width 400ms ease,
+    height 400ms ease,
+    min-width 400ms ease,
+    padding 400ms ease,
+    border-radius 400ms ease,
+    border-width 400ms ease,
+    gap 400ms ease,
+    box-shadow 400ms ease;
 }
 
 .mapbox-order-marker__pill-num {
+  color: #fff;
   opacity: 1;
+  transition: opacity 400ms ease;
 }
 
 .mapbox-order-marker__pill--overdue {
   background: var(--danger);
-  color: var(--text-1);
+  color: #fff;
 }
 
-/* Доставленный заказ в маршруте: капсула зелёная (opacity 1), иконка галочки белая */
+/* Доставленный заказ в маршруте: капсула зелёная (opacity 1), иконка галочки белая (currentColor) */
 .mapbox-order-marker__pill--done {
   justify-content: center;
   background: var(--success);
-  color: var(--text-1);
+  color: #fff;
 }
 
 .mapbox-order-marker__done-icon {
   display: block;
   flex-shrink: 0;
+  color: #fff;
 }
 
-/* При отдалении карты — круглая точка 8px без бордера и цифры */
+/* Крупный маркер без адреса (10 < zoom < 12) */
+.mapbox-order-marker--hide-label .mapbox-order-marker__label {
+  display: none;
+}
+
+/* Микро: zoom ≤ 10 — вытянутая капсула без цифры */
 .mapbox-order-marker--compact .mapbox-order-marker__pill {
-  width: 8px;
-  height: 8px;
-  min-width: 8px;
+  width: 16px;
+  height: 9px;
+  min-width: 16px;
+  max-width: 16px;
   padding: 0;
-  border-radius: 50%;
+  border-radius: 4.5px;
   border-width: 0;
   border-color: transparent;
+  gap: 0;
 }
 
 .mapbox-order-marker--compact .mapbox-order-marker__pill-num {
@@ -333,71 +360,219 @@
   display: none;
 }
 
+/* Как у курьерского пина (без ореола и подписи): 28×28, r14, бордер 1.5px fill-inverted */
 .mapbox-restaurant-marker {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
   background-color: var(--success);
-  border: 2px solid var(--text-1);
   box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--fill-inverted);
+  border-width: 1.5px;
   display: flex;
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  transition: width 400ms ease, height 400ms ease;
+  transform: translateY(2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  transition:
+    width 400ms ease,
+    height 400ms ease,
+    border-radius 400ms ease,
+    border-width 400ms ease,
+    border-color 400ms ease,
+    box-shadow 400ms ease;
 }
 
 .mapbox-restaurant-marker__icon {
   width: 16px;
   height: 16px;
   display: block;
-  background-color: var(--fill-inverted);
+  /* На зелёном маркере всегда белый силуэт, независимо от темы */
+  background-color: #ffffff;
   mask: var(--icon-src) center / contain no-repeat;
   -webkit-mask: var(--icon-src) center / contain no-repeat;
   transition: width 400ms ease, height 400ms ease;
 }
 
 .mapbox-restaurant-marker--compact {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  border-width: 0;
+  border-color: transparent;
 }
 
 .mapbox-restaurant-marker--compact .mapbox-restaurant-marker__icon {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 
-/* Маркер курьера: только иконка пеший/вело/авто 16px зелёного цвета + подпись фамилии */
+/* Маркер курьера — Figma «courier mark» 2252:22560: ореол 56 rgba 20%, pin 28×28 r14, border 1.5px fill-inverted, иконка 16px */
 .mapbox-courier-marker {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  width: 56px;
   pointer-events: none;
+  transform: translateY(2px);
+  transition:
+    width 400ms ease,
+    opacity 300ms ease-out;
 }
 
-.mapbox-courier-marker__icon {
-  width: 16px;
-  height: 16px;
-  display: block;
-  object-fit: contain;
-  /* Зелёный цвет #03AB00 для иконки */
-  filter: brightness(0) saturate(100%) invert(42%) sepia(93%) saturate(1500%) hue-rotate(87deg);
+.mapbox-courier-marker__visual {
+  position: relative;
+  z-index: 0;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  overflow: visible;
   transition: width 400ms ease, height 400ms ease;
 }
 
+/* Ореол Figma: круг 56, #03AB00 20% — div, без img (стабильнее в маркере) */
+.mapbox-courier-marker__halo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 0;
+  width: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(3, 171, 0, 0.2);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: mapbox-courier-halo-pulse 3.5s ease-in-out infinite;
+}
+
+@keyframes mapbox-courier-halo-pulse {
+  0%,
+  100% {
+    width: 48px;
+    height: 48px;
+    opacity: 0;
+  }
+  50% {
+    width: 56px;
+    height: 56px;
+    opacity: 1;
+  }
+}
+
+/*
+ * Зелёный диск и бордер на ::before: у WebKit filter на img внутри flex-родителя
+ * может скрывать background у самого родителя — круг «пропадает».
+ */
+.mapbox-courier-marker__pin {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+  transition:
+    width 400ms ease,
+    height 400ms ease,
+    border-radius 400ms ease,
+    border-width 400ms ease,
+    box-shadow 400ms ease;
+}
+
+.mapbox-courier-marker__pin::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  box-sizing: border-box;
+  border-radius: inherit;
+  background-color: #03ab00;
+  background-color: var(--success);
+  border-style: solid;
+  border-color: var(--fill-inverted);
+  border-width: 1.5px;
+  transition: border-width 400ms ease, border-color 400ms ease;
+}
+
+.mapbox-courier-marker__icon {
+  position: relative;
+  z-index: 1;
+  width: 16px;
+  height: 16px;
+  display: block;
+  flex-shrink: 0;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  transition: width 400ms ease, height 400ms ease;
+}
+
+.mapbox-courier-marker--compact .mapbox-courier-marker__visual {
+  width: 14px;
+  height: 14px;
+}
+
+.mapbox-courier-marker--compact .mapbox-courier-marker__halo {
+  display: none;
+}
+
+.mapbox-courier-marker--compact {
+  width: 14px;
+}
+
+.mapbox-courier-marker--compact .mapbox-courier-marker__pin {
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+}
+
+.mapbox-courier-marker--compact .mapbox-courier-marker__pin::before {
+  border-width: 0;
+  border-color: transparent;
+}
+
 .mapbox-courier-marker--compact .mapbox-courier-marker__icon {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
 }
 
 .mapbox-courier-marker--compact .mapbox-courier-marker__label {
   display: none;
 }
 
+/* Крупный курьер без фамилии (10 < zoom < 12) */
+.mapbox-courier-marker--hide-label .mapbox-courier-marker__label {
+  display: none;
+}
+
+.mapbox-courier-marker__label {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: -10px;
+  width: 78px;
+  max-width: 78px;
+  box-sizing: border-box;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .mapbox-courier-marker__label,
 .mapbox-order-marker__label {
-  max-width: 120px;
   color: var(--text-1);
   text-align: center;
   text-shadow:
@@ -407,6 +582,15 @@
   font-style: normal;
   white-space: normal;
   word-break: break-word;
+}
+
+.mapbox-order-marker__label {
+  max-width: 96px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Попап при клике на маркер заказа — «Добавить в маршрут» */
@@ -458,6 +642,11 @@
 }
 
 .mapbox-marker-popup__btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Без глобального фиолетового outline из index.css (:focus-visible) */
+.mapbox-marker-popup__btn:focus-visible {
   outline: none;
 }
 

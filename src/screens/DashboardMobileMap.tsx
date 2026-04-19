@@ -1,3 +1,4 @@
+import type { MutableRefObject } from 'react'
 import { type Courier, type Order, type Route } from '../model/types'
 import { type CourierMarkerItem } from '../components/MapboxMap'
 import { MapWidget, type OrderMarkerItem } from '../components/MapWidget'
@@ -17,12 +18,15 @@ export type DashboardMobileMapProps = {
   mapFocusCoords: { lat: number; lng: number } | null
   mapFocusBounds: { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } } | null
   onClearFocus: () => void
-  onOrderAddToRoute: (orderId: string) => void
+  onOrderAddToRoute?: (orderId: string) => void
   orderIdsInRoute: string[]
+  onCourierAddToRoute?: (courierId: string) => void
+  courierIdsAssignedToDraft?: string[]
   onMarkerClick: (marker: { id: string }) => void
   onCourierMarkerClick: (marker: CourierMarkerItem) => void
   onMapBackgroundClick: () => void
   routeFlashTrigger: number | null
+  mapZoomRef: MutableRefObject<number>
 }
 
 export function DashboardMobileMap({
@@ -41,10 +45,13 @@ export function DashboardMobileMap({
   onClearFocus,
   onOrderAddToRoute,
   orderIdsInRoute,
+  onCourierAddToRoute,
+  courierIdsAssignedToDraft,
   onMarkerClick,
   onCourierMarkerClick,
   onMapBackgroundClick,
   routeFlashTrigger,
+  mapZoomRef,
 }: DashboardMobileMapProps) {
   return (
     <>
@@ -75,6 +82,8 @@ export function DashboardMobileMap({
               onClearFocus={onClearFocus}
               onOrderAddToRoute={onOrderAddToRoute}
               orderIdsInRoute={orderIdsInRoute}
+              onCourierAddToRoute={onCourierAddToRoute}
+              courierIdsAssignedToDraft={courierIdsAssignedToDraft}
               onMarkerClick={onMarkerClick}
               onCourierMarkerClick={onCourierMarkerClick}
               onMapBackgroundClick={onMapBackgroundClick}
@@ -82,6 +91,7 @@ export function DashboardMobileMap({
               mapViewMode="half"
               mapColumnWidthWhenVisible={undefined}
               hideViewSelector
+              mapZoomRef={mapZoomRef}
             />
           </div>
         </div>

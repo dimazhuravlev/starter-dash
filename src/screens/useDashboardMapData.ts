@@ -80,7 +80,6 @@ export type OrderMarkerItem = {
   slaLabel: string
   routePosition?: number
   isDelivered: boolean
-  isDimmed: boolean
 }
 
 export function useDashboardMapData({
@@ -144,9 +143,6 @@ export function useDashboardMapData({
           const slaStatus = getOrderSlaStatus(o, now)
           const idx = routeOrderIds.indexOf(o.id)
           const routePosition = idx >= 0 ? idx + 1 : undefined
-          const inFocusedRoute = routeOrderIds.includes(o.id)
-          /** Когда маршрут активен (видна линия), все маркеры не из этого маршрута — затемнённые */
-          const isDimmed = !!focusedRouteId && !inFocusedRoute
           return {
             id: o.id,
             lng: o.coords.lng,
@@ -159,7 +155,6 @@ export function useDashboardMapData({
             slaLabel: slaStatus.label,
             routePosition,
             isDelivered,
-            isDimmed,
           }
         })
     },

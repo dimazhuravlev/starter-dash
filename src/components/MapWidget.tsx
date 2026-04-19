@@ -1,3 +1,4 @@
+import { type MutableRefObject } from 'react'
 import { type Order } from '../model/types'
 import { MapboxMap, type CourierMarkerItem, type MapViewMode } from './MapboxMap'
 
@@ -28,6 +29,8 @@ export function MapWidget({
   onClearFocus,
   onOrderAddToRoute,
   orderIdsInRoute,
+  onCourierAddToRoute,
+  courierIdsAssignedToDraft,
   onMarkerClick,
   onCourierMarkerClick,
   onMapBackgroundClick,
@@ -37,6 +40,7 @@ export function MapWidget({
   mapColumnWidthWhenVisible,
   hideViewSelector,
   theme,
+  mapZoomRef,
 }: {
   theme?: 'dark' | 'light'
   orders: Record<string, Order>
@@ -53,6 +57,8 @@ export function MapWidget({
   onClearFocus: () => void
   onOrderAddToRoute?: (orderId: string) => void
   orderIdsInRoute?: string[]
+  onCourierAddToRoute?: (courierId: string) => void
+  courierIdsAssignedToDraft?: string[]
   onMarkerClick?: (marker: OrderMarkerItem) => void
   onCourierMarkerClick?: (marker: CourierMarkerItem) => void
   onMapBackgroundClick?: () => void
@@ -62,6 +68,7 @@ export function MapWidget({
   mapColumnWidthWhenVisible?: number
   /** Скрыть селектор вида карты (для фулскрин-оверлея на мобильных) */
   hideViewSelector?: boolean
+  mapZoomRef?: MutableRefObject<number>
 }) {
   void _orders
   const isCollapsed = mapViewMode === 'none'
@@ -93,6 +100,8 @@ export function MapWidget({
           onClearFocus={onClearFocus}
           onOrderAddToRoute={onOrderAddToRoute}
           orderIdsInRoute={orderIdsInRoute}
+          onCourierAddToRoute={onCourierAddToRoute}
+          courierIdsAssignedToDraft={courierIdsAssignedToDraft}
           onMarkerClick={onMarkerClick}
           onCourierMarkerClick={onCourierMarkerClick}
           onMapBackgroundClick={onMapBackgroundClick}
@@ -100,6 +109,7 @@ export function MapWidget({
           mapViewMode={mapViewMode}
           onMapViewModeChange={onMapViewModeChange}
           hideViewSelector={hideViewSelector}
+          mapZoomRef={mapZoomRef}
         />
       </div>
     </div>

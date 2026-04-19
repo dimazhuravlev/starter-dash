@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import type { MutableRefObject, RefObject } from 'react'
 import { type Courier, type Order, type Route } from '../model/types'
 import { type CourierMarkerItem, type MapViewMode } from '../components/MapboxMap'
 import { MapWidget, type OrderMarkerItem } from '../components/MapWidget'
@@ -28,12 +28,15 @@ export type DashboardMapColumnProps = {
   mapFocusCoords: { lat: number; lng: number } | null
   mapFocusBounds: { sw: { lat: number; lng: number }; ne: { lat: number; lng: number } } | null
   onClearFocus: () => void
-  onOrderAddToRoute: (orderId: string) => void
+  onOrderAddToRoute?: (orderId: string) => void
   orderIdsInRoute: string[]
+  onCourierAddToRoute?: (courierId: string) => void
+  courierIdsAssignedToDraft?: string[]
   onMarkerClick: (marker: { id: string }) => void
   onCourierMarkerClick: (marker: CourierMarkerItem) => void
   onMapBackgroundClick: () => void
   routeFlashTrigger: number | null
+  mapZoomRef: MutableRefObject<number>
 }
 
 export function DashboardMapColumn({
@@ -58,10 +61,13 @@ export function DashboardMapColumn({
   onClearFocus,
   onOrderAddToRoute,
   orderIdsInRoute,
+  onCourierAddToRoute,
+  courierIdsAssignedToDraft,
   onMarkerClick,
   onCourierMarkerClick,
   onMapBackgroundClick,
   routeFlashTrigger,
+  mapZoomRef,
 }: DashboardMapColumnProps) {
   const widthPx =
     mapViewMode === 'none'
@@ -106,6 +112,8 @@ export function DashboardMapColumn({
           onClearFocus={onClearFocus}
           onOrderAddToRoute={onOrderAddToRoute}
           orderIdsInRoute={orderIdsInRoute}
+          onCourierAddToRoute={onCourierAddToRoute}
+          courierIdsAssignedToDraft={courierIdsAssignedToDraft}
           onMarkerClick={onMarkerClick}
           onCourierMarkerClick={onCourierMarkerClick}
           onMapBackgroundClick={onMapBackgroundClick}
@@ -113,6 +121,7 @@ export function DashboardMapColumn({
           mapViewMode={mapViewMode}
           onMapViewModeChange={onMapViewModeChange}
           mapColumnWidthWhenVisible={rightColumnWidth ?? undefined}
+          mapZoomRef={mapZoomRef}
         />
       </section>
     </div>
