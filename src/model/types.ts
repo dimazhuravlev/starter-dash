@@ -13,6 +13,9 @@ export type CourierStatus = 'free' | 'assigned' | 'returning'
 /** Тип курьера: пеший, велокурьер, авто */
 export type CourierType = 'pedestrian' | 'bike' | 'car'
 
+/** Пол курьера (только в карточке / форме, не в ячейке таблицы) */
+export type CourierGender = 'male' | 'female'
+
 export type RouteStatus = 'draft' | 'sent' | 'done'
 
 export type RouteStepKind = 'pickup' | 'enroute' | 'handoff' | 'returning'
@@ -41,7 +44,17 @@ export type Order = {
 
 export type Courier = {
   id: string
+  /** Полное имя для таблицы, поиска и совместимости: «Фамилия Имя» */
   name: string
+  /** Фамилия (форма курьера) */
+  lastName?: string
+  /** Имя (форма курьера) */
+  firstName?: string
+  gender?: CourierGender
+  /** Логин в системе (таблица курьеров) */
+  login: string
+  /** Телефон для отображения */
+  phone: string
   type: CourierType
   status: CourierStatus
   freeSince: number
@@ -69,3 +82,15 @@ export type Route = {
 
 /** Координаты ресторана — точки, из которой доставляются заказы */
 export const RESTAURANT_COORDS = { lat: 59.9559111, lng: 30.2985614 } as const
+
+export type Restaurant = {
+  id: string
+  name: string
+  address: string
+  pickupMin: number
+  handoffMin: number
+  routeMode: 'auto' | 'manual'
+  timezone?: string
+  latitude?: string
+  longitude?: string
+}

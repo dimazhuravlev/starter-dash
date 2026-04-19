@@ -10,6 +10,17 @@ import addressSeeds from '../data/addressSeeds.json'
 
 export type RouteMode = 'manual' | 'auto'
 
+/** Снимок симуляции на входе в сессию редактирования автомаршрутов (откат при отмене или таймере) */
+export type AutoEditSessionBaseline = {
+  now: number
+  lastOrderCreatedAt: number
+  nextOrderId: number
+  nextRouteId: number
+  routes: Record<string, Route>
+  orders: Record<string, Order>
+  couriers: Record<string, Courier>
+}
+
 export type DashboardState = {
   now: number
   isRunning: boolean
@@ -27,6 +38,8 @@ export type DashboardState = {
   routeMode: RouteMode
   /** Режим редактирования автомаршрутов — авто-назначение приостановлено */
   isEditingAutoRoutes: boolean
+  /** Не null только пока идёт сессия редактирования в авторежиме */
+  autoEditSessionBaseline: AutoEditSessionBaseline | null
 }
 
 const getOrderStageMs = (orderStageMin: OrderStageMin) => ({

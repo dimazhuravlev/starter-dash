@@ -1,0 +1,287 @@
+/* Модальное окно «Новый ресторан» — по макету Figma (токены проекта) */
+
+.restaurant-add-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.restaurant-add-modal--active {
+  pointer-events: auto;
+}
+
+.restaurant-add-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  /* Светлый слой из палитры (--fill-3 = --mono-40) поверх затемнения — модалка читается на blur */
+  background-image:
+    linear-gradient(0deg, var(--fill-3), var(--fill-3)),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.32));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.restaurant-add-modal--active .restaurant-add-modal__backdrop {
+  opacity: 1;
+}
+
+.restaurant-add-modal__wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  max-height: min(90vh, 900px);
+  overflow-y: auto;
+  transform: translateY(10px);
+  opacity: 0;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.restaurant-add-modal--active .restaurant-add-modal__wrap {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.restaurant-add-modal__dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke-3);
+  background: var(--surface-0);
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.restaurant-add-modal__title {
+  margin: 0;
+  font: var(--type-headline-1);
+  color: var(--text-1);
+}
+
+.restaurant-add-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.restaurant-add-modal__row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.restaurant-add-modal__row .restaurant-add-modal__field {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.restaurant-add-modal__select-wrap {
+  position: relative;
+}
+
+.restaurant-add-modal__select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  padding: 0 36px 0 12px;
+  border: 1px solid var(--stroke-2);
+  border-radius: 12px;
+  background: var(--fill-2);
+  color: var(--text-1);
+  font: var(--type-text);
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color 200ms ease,
+    background 200ms ease;
+}
+
+.restaurant-add-modal__select:hover {
+  border-color: var(--stroke-3);
+}
+
+.restaurant-add-modal__select:focus {
+  outline: none;
+  background: var(--fill-3);
+}
+
+.restaurant-add-modal__select:focus-visible {
+  outline: none;
+}
+
+.restaurant-add-modal__select-chevron {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  pointer-events: none;
+  background-color: var(--text-1);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+}
+
+.restaurant-add-modal__steppers {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.restaurant-add-modal__stepper-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.restaurant-add-modal__stepper-row > .tooltip-wrapper {
+  cursor: help;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.restaurant-add-modal__stepper-tooltip-trigger {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0;
+  font: var(--type-text);
+  color: var(--text-1);
+}
+
+.restaurant-add-modal__stepper-tooltip-trigger .restaurants__col-mode-info {
+  background-color: var(--text-2);
+}
+
+.restaurant-add-modal__stepper-row > .tooltip-wrapper:hover .restaurants__col-mode-info,
+.restaurant-add-modal__stepper-tooltip-trigger:hover .restaurants__col-mode-info {
+  background-color: var(--text-1);
+}
+
+.restaurant-add-modal__time-picker {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
+  border-radius: 6px;
+}
+
+.restaurant-add-modal__time-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--stroke-1);
+  border-radius: 32px;
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-3) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition:
+    background 200ms ease,
+    transform 100ms ease;
+}
+
+.restaurant-add-modal__time-btn:hover {
+  background: linear-gradient(180deg, var(--fill-3) 0%, var(--fill-4) 100%);
+}
+
+.restaurant-add-modal__time-btn:active {
+  transform: scale(0.92);
+}
+
+.restaurant-add-modal__time-btn .icon {
+  width: 16px;
+  height: 16px;
+  background-color: var(--fill-inverted);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+}
+
+.restaurant-add-modal__time-value {
+  width: 24px;
+  text-align: center;
+  font: var(--type-text);
+  color: var(--text-1);
+}
+
+.restaurant-add-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.restaurant-add-modal__btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 40px;
+  background: var(--fill-inverted);
+  color: var(--text-inverted);
+  font: var(--type-text);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.restaurant-add-modal__btn-primary:hover {
+  opacity: 0.92;
+}
+
+.restaurant-add-modal__btn-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: var(--text-inverted);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+}
+
+.restaurant-add-modal__btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--stroke-1);
+  border-radius: 40px;
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-3) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  color: var(--text-1);
+  font: var(--type-text);
+  cursor: pointer;
+  transition:
+    background 200ms ease,
+    opacity 200ms ease;
+}
+
+.restaurant-add-modal__btn-secondary:hover {
+  background: linear-gradient(180deg, var(--fill-3) 0%, var(--fill-4) 100%);
+}
+
+.restaurant-add-modal__btn-icon--on-dark {
+  background-color: var(--text-1);
+}

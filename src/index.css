@@ -5,6 +5,7 @@
 @import './shared/ui/AppSubheader.css';
 @import './shared/ui/Card.css';
 @import './shared/ui/PrimaryButton.css';
+@import './shared/ui/TextField.css';
 @import './components/MapWidget.css';
 @import './components/MapboxMap.css';
 @import './screens/DashboardMobileMap.css';
@@ -12,8 +13,11 @@
 @import './entities/ColumnSection.css';
 @import './entities/RouteDraftCard.css';
 @import './entities/RouteDeliveryCard.css';
-@import './screens/DebugPanelScreen.css';
 @import './screens/RestaurantsScreen.css';
+@import './screens/CouriersScreen.css';
+@import './screens/SettingsScreen.css';
+@import './screens/RestaurantAddModal.css';
+@import './screens/RestaurantDeleteConfirmModal.css';
 
 /* ========== Design tokens: colors & typography ========== */
 
@@ -103,10 +107,69 @@
   --danger-surface-strong: var(--red-900);
   --danger-surface: var(--red-20);
 
+  /** Режим «Автомат»: лейбл и активный фон вертикального тоггла (Figma node 2036:26330) */
+  --route-mode-auto-gradient: linear-gradient(
+    -74.58deg,
+    #ab04ff 0%,
+    #df00ef 49.52%,
+    #8200e5 90.39%
+  );
+
   /* Фокус с клавиатуры — кольцо и caret в полях ввода */
   --focus-ring: var(--accent);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
+}
+
+/* Лейбл «Автомат»: градиент + волна блика внутри глифов (оба слоя — background-clip: text) */
+/* Пауза → пробег волны. 96–100% без смены позиции — иначе браузер интерполирует -130%→130% и даёт резкий обратный пробег */
+@keyframes route-mode-auto-text-wave {
+  0%,
+  72% {
+    background-position: 130% 0, 0 0;
+  }
+  96%,
+  100% {
+    background-position: -130% 0, 0 0;
+  }
+}
+
+.route-mode-auto-text {
+  position: relative;
+  display: inline-block;
+  color: transparent;
+  background-image:
+    linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0) 22%,
+      rgba(255, 255, 255, 0.2) 38%,
+      rgba(255, 255, 255, 0.58) 50%,
+      rgba(255, 255, 255, 0.2) 62%,
+      rgba(255, 255, 255, 0) 78%,
+      transparent 100%
+    ),
+    var(--route-mode-auto-gradient);
+  background-size:
+    320% 100%,
+    100% 100%;
+  background-position:
+    130% 0,
+    0 0;
+  background-repeat: no-repeat;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: route-mode-auto-text-wave 12s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-mode-auto-text {
+    animation: none;
+    background-image: var(--route-mode-auto-gradient);
+    background-size: 100% 100%;
+    background-position: 0 0;
+  }
 }
 
 /* Base styles using tokens */
@@ -120,7 +183,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  corner-shape: smooth;
 }
 
 * {
@@ -204,4 +266,30 @@ body {
 
 :focus:not(:focus-visible) {
   outline: none;
+}
+
+/*
+ * Иконки: mask + background-color и inline --icon-src / --info-icon.
+ * Longhand вместо mask-shorthand — иначе с var() в ряде сборок WebKit/Blink маска не применяется.
+ */
+[style*='--icon-src'] {
+  -webkit-mask-image: var(--icon-src);
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: var(--icon-src);
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+}
+
+[style*='--info-icon'] {
+  -webkit-mask-image: var(--info-icon);
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-image: var(--info-icon);
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
 }

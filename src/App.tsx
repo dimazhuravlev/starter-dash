@@ -1,13 +1,28 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useDashboardStore } from './store/useDashboardStore'
 import { DashboardScreen } from './screens/DashboardScreen'
-import { DebugPanelScreen } from './screens/DebugPanelScreen'
-import { RestaurantsScreen, type Restaurant } from './screens/RestaurantsScreen'
+import type { Restaurant } from './model/types'
+import { RestaurantsScreen } from './screens/RestaurantsScreen'
+import { CouriersScreen } from './screens/CouriersScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 import { AppHeader } from './shared/ui/AppHeader'
 import { AppSubheader } from './shared/ui/AppSubheader'
 import initialRestaurantsData from './data/restaurants.json'
 
-const tabItems = ['Заказы', 'Рестораны']
+const tabItems = ['Заказы', 'Рестораны', 'Курьеры']
+
+const PROFILE_LOGIN_STORAGE_KEY = 'profileLogin'
+
+function readStoredProfileLogin(): string {
+  if (typeof localStorage === 'undefined') return 'orlovoleg'
+  try {
+    const raw = localStorage.getItem(PROFILE_LOGIN_STORAGE_KEY)
+    if (raw === null) return 'orlovoleg'
+    return raw
+  } catch {
+    return 'orlovoleg'
+  }
+}
 
 function App() {
   const now = useDashboardStore((state) => state.now)
@@ -42,7 +57,7 @@ function App() {
   const routeMode = useDashboardStore((state) => state.routeMode)
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>(initialRestaurantsData as Restaurant[])
-  const [screen, setScreen] = useState<'dashboard' | 'restaurants' | 'debug'>('dashboard')
+  const [screen, setScreen] = useState<'dashboard' | 'restaurants' | 'couriers' | 'settings'>('dashboard')
   const [activeTab, setActiveTab] = useState(0)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [activeRestaurantTab, setActiveRestaurantTab] = useState(0)
@@ -55,6 +70,9 @@ function App() {
     const saved = localStorage.getItem('theme')
     return saved === 'light' ? 'light' : 'dark'
   })
+  const [profileLogin, setProfileLogin] = useState(readStoredProfileLogin)
+  /** Вкладка экрана настроек (0…4), синхронизируется с AppSubheader внутри SettingsScreen */
+  const [settingsTab, setSettingsTab] = useState(0)
 
   // Пустой шаблон только в ручном режиме
   useEffect(() => {
@@ -80,6 +98,15 @@ function App() {
     if (typeof localStorage !== 'undefined') localStorage.setItem('theme', theme)
   }, [theme])
 
+  useEffect(() => {
+    if (typeof localStorage === 'undefined') return
+    try {
+      localStorage.setItem(PROFILE_LOGIN_STORAGE_KEY, profileLogin)
+    } catch {
+      /* ignore quota / private mode */
+    }
+  }, [profileLogin])
+
   // Синхронизация routeMode и времён pickup/handoff из активного ресторана
   useEffect(() => {
     const restaurant = restaurants[activeRestaurantTab]
@@ -88,6 +115,17 @@ function App() {
     setRouteStageMin('pickup', restaurant.pickupMin)
     setRouteStageMin('handoff', restaurant.handoffMin)
   }, [activeRestaurantTab, restaurants, setRouteMode, setRouteStageMin])
+
+  /** После удаления ресторана из списка не выходим за пределы индексов вкладок */
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- кламп индекса вкладки при изменении длины списка */
+    if (restaurants.length === 0) {
+      setActiveRestaurantTab(0)
+      return
+    }
+    setActiveRestaurantTab((i) => Math.min(i, restaurants.length - 1))
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [restaurants.length])
 
   const handleRouteModeChange = useCallback(
     (mode: 'auto' | 'manual') => {
@@ -108,13 +146,13 @@ function App() {
     document.body.classList.remove('is-dragging', 'is-resizing')
   }, [screen, activeRestaurantTab])
 
-  const isDebug = screen === 'debug'
+  const isSettings = screen === 'settings'
 
   return (
     <div className="app-shell">
       <AppHeader
         tabItems={tabItems}
-        activeTab={activeTab}
+        activeTab={screen === 'settings' ? -1 : activeTab}
         isMenuOpen={isMenuOpen}
         onMenuToggle={() => setIsMenuOpen((open) => !open)}
         onTabClick={(index) => {
@@ -122,12 +160,21 @@ function App() {
           setActiveTab(index)
           if (index === 0) setScreen('dashboard')
           else if (index === 1) setScreen('restaurants')
+          else if (index === 2) setScreen('couriers')
           else setScreen('dashboard')
         }}
-        isDebug={isDebug}
-        onDebugClick={() => setScreen(isDebug ? 'dashboard' : 'debug')}
-        theme={theme}
-        onThemeToggle={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+        isSettingsActive={screen === 'settings'}
+        onSettingsClick={() => {
+          setIsMenuOpen(false)
+          setSettingsTab(0)
+          setScreen('settings')
+        }}
+        onProfileClick={() => {
+          setIsMenuOpen(false)
+          setSettingsTab(2)
+          setScreen('settings')
+        }}
+        profileLogin={profileLogin}
       />
 
       {screen === 'dashboard' && activeTab === 0 && (
@@ -139,7 +186,7 @@ function App() {
       )}
 
       <main className="app-content">
-        {/* Не размонтируем экраны — переключаем видимость, чтобы карта и дашборд не вызывали cleanup при переходе в дебаг/табы */}
+        {/* Не размонтируем экраны — переключаем видимость, чтобы карта и дашборд не вызывали cleanup при переходе в настройки/табы */}
         <div
           className={`app-content__pane${screen === 'dashboard' && activeRestaurantTab === 0 ? '' : ' app-content__pane--hidden'}`}
           aria-hidden={screen !== 'dashboard' || activeRestaurantTab !== 0}
@@ -182,11 +229,22 @@ function App() {
           <RestaurantsScreen restaurants={restaurants} onRestaurantsChange={setRestaurants} />
         </div>
         <div
-          className={`app-content__pane${screen === 'debug' ? '' : ' app-content__pane--hidden'}`}
-          aria-hidden={screen !== 'debug'}
+          className={`app-content__pane${screen === 'couriers' ? '' : ' app-content__pane--hidden'}`}
+          aria-hidden={screen !== 'couriers'}
         >
-          <DebugPanelScreen
-            key="debug"
+          <CouriersScreen />
+        </div>
+        <div
+          className={`app-content__pane${isSettings ? '' : ' app-content__pane--hidden'}`}
+          aria-hidden={!isSettings}
+        >
+          <SettingsScreen
+            theme={theme}
+            onThemeChange={setTheme}
+            profileLogin={profileLogin}
+            onProfileLoginChange={setProfileLogin}
+            activeTab={settingsTab}
+            onActiveTabChange={setSettingsTab}
             now={now}
             isRunning={isRunning}
             speed={speed}

@@ -1,0 +1,321 @@
+/* Раздел «Курьеры» — по макету Figma, те же паттерны что у .restaurants */
+
+.couriers {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 64px;
+  overflow-y: auto;
+}
+
+.couriers__table {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 1400px;
+}
+
+@media (max-width: 1228px) {
+  .couriers {
+    padding: 32px 16px;
+  }
+}
+
+.couriers__table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.couriers__title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font: var(--type-headline-1);
+  white-space: nowrap;
+}
+
+.couriers__title-count {
+  color: var(--text-3);
+}
+
+.couriers__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.couriers__search-wrap {
+  position: relative;
+  width: 240px;
+  flex-shrink: 0;
+}
+
+.couriers__add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 40px;
+  background: var(--fill-inverted);
+  color: var(--text-inverted);
+  font: var(--type-text);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+}
+
+.couriers__add-btn:hover {
+  opacity: 0.9;
+}
+
+.couriers__add-btn .icon {
+  width: 16px;
+  height: 16px;
+  background-color: var(--text-inverted);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+}
+
+.couriers__table-divider {
+  flex-shrink: 0;
+  height: 1px;
+  background: var(--stroke-2);
+}
+
+.couriers__columns {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.couriers__col-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+  padding: 0 32px;
+}
+
+.couriers__col-header span {
+  font: var(--type-text);
+  color: var(--text-2);
+}
+
+.couriers__col--name {
+  flex: 2.4 1 0;
+  min-width: 120px;
+  max-width: 372px;
+}
+
+.couriers__col--login,
+.couriers__col--phone {
+  flex: 1 1 0;
+  min-width: 80px;
+}
+
+.couriers__col--type {
+  flex: 1 1 0;
+  min-width: 100px;
+}
+
+.couriers__col--actions {
+  width: 44px;
+  flex-shrink: 0;
+}
+
+.couriers__row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 64px;
+  padding: 0 32px;
+  position: relative;
+  background: var(--surface-1);
+  border-radius: 12px;
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.couriers__row::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--overlay-hover);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.couriers__row:hover::before {
+  opacity: 1;
+}
+
+.couriers__row-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+}
+
+.couriers__row .couriers__cell--name {
+  flex: 2.4 1 0;
+  min-width: 120px;
+  max-width: 372px;
+  font: var(--type-text);
+  color: var(--text-1);
+}
+
+.couriers__row .couriers__cell--login,
+.couriers__row .couriers__cell--phone {
+  flex: 1 1 0;
+  min-width: 0;
+  font: var(--type-text);
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.couriers__row .couriers__cell--type {
+  flex: 1 1 0;
+  min-width: 100px;
+}
+
+.couriers__type-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  border: 1px solid var(--stroke-3);
+  font: var(--type-text);
+  color: var(--text-1);
+}
+
+.couriers__type-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: var(--fill-6);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+}
+
+.couriers__edit-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.couriers__edit-icon-graphic {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: var(--fill-6);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+  transition: background-color 200ms ease;
+}
+
+.couriers__edit-btn:hover .couriers__edit-icon-graphic {
+  background-color: var(--fill-inverted);
+}
+
+.couriers__row:hover .couriers__edit-btn {
+  opacity: 1;
+}
+
+.couriers__row-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.couriers__delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.couriers__delete-icon-graphic {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: var(--danger);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+  transition: opacity 200ms ease;
+}
+
+.couriers__delete-btn:hover .couriers__delete-icon-graphic {
+  opacity: 0.85;
+}
+
+.couriers__row:hover .couriers__delete-btn {
+  opacity: 1;
+}
+
+.couriers__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 900px) {
+  .couriers {
+    align-items: flex-start;
+    overflow-x: auto;
+  }
+
+  .couriers__table {
+    min-width: 900px;
+  }
+
+  .couriers__col-header {
+    gap: 8px;
+    padding: 0 16px;
+  }
+
+  .couriers__row-inner {
+    gap: 8px;
+  }
+
+  .couriers__row {
+    padding: 0 16px;
+  }
+}

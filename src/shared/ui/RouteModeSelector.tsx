@@ -58,7 +58,11 @@ export function RouteModeSelector({ mode, synced, onModeChange, className }: Rou
           className={`route-mode-selector__label route-mode-selector__label--auto ${mode === 'auto' ? 'route-mode-selector__label--active' : 'route-mode-selector__label--inactive'}`}
           onClick={() => onModeChange('auto')}
         >
-          Автомат
+          {mode === 'auto' ? (
+            <span className="route-mode-auto-text">Автомат</span>
+          ) : (
+            'Автомат'
+          )}
         </button>
         <button
           type="button"

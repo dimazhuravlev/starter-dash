@@ -52,91 +52,6 @@
   flex-shrink: 0;
 }
 
-.restaurants__search {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  width: 100%;
-  height: 40px;
-  padding-left: 12px;
-  padding-right: 12px;
-  background: var(--fill-2);
-  border: 1px solid var(--stroke-2);
-  border-radius: 12px;
-  color: var(--text-1);
-  font: var(--type-text);
-  caret-color: var(--focus-ring);
-  transition:
-    border-color 200ms ease,
-    background 200ms ease,
-    padding-right 300ms ease;
-}
-
-.restaurants__search--has-value {
-  padding-right: 36px;
-}
-
-.restaurants__search-clear {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-50%);
-  transition: opacity 300ms ease;
-}
-
-.restaurants__search-clear--visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.restaurants__search-clear-icon {
-  display: block;
-  width: 16px;
-  height: 16px;
-  background-color: var(--text-2);
-  mask: var(--icon-src) center / contain no-repeat;
-  -webkit-mask: var(--icon-src) center / contain no-repeat;
-}
-
-.restaurants__search-clear:hover .restaurants__search-clear-icon {
-  background-color: var(--text-1);
-}
-
-.restaurants__search:hover {
-  border-color: var(--stroke-3);
-}
-
-.restaurants__search:focus {
-  background: var(--fill-3);
-}
-
-.restaurants__search:focus-visible {
-  outline: none;
-}
-
-.restaurants__search::placeholder {
-  color: var(--text-3);
-  opacity: 1;
-  transition: opacity 200ms ease;
-}
-
-.restaurants__search:focus::placeholder {
-  opacity: 0.5;
-}
-
 .restaurants__add-btn {
   display: flex;
   align-items: center;
@@ -161,8 +76,8 @@
   width: 16px;
   height: 16px;
   background-color: var(--text-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
 }
 
 .restaurants__table-divider {
@@ -253,8 +168,9 @@
   background-color: var(--text-1);
 }
 
-.restaurants__col--edit {
-  width: 16px;
+/* Колонка действий: Edit + Delete (макет Figma — gap 12px) */
+.restaurants__col--actions {
+  width: 44px;
   flex-shrink: 0;
 }
 
@@ -379,8 +295,8 @@
   width: 16px;
   height: 16px;
   background-color: var(--fill-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
 }
 
 .restaurants__time-value {
@@ -388,6 +304,12 @@
   text-align: center;
   font: var(--type-text);
   color: var(--text-1);
+}
+
+.restaurants__time-value--wide {
+  width: auto;
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
 }
 
 .restaurants__row--global .restaurants__time-value {
@@ -398,29 +320,92 @@
   color: var(--text-3);
 }
 
-/* Edit icon */
-.restaurants__edit-icon {
+/* Кнопка редактирования в строке ресторана */
+.restaurants__edit-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.restaurants__edit-icon-graphic {
+  display: block;
   width: 16px;
   height: 16px;
   flex-shrink: 0;
   background-color: var(--fill-6);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
-  opacity: 0;
-  transition: opacity 150ms ease, background-color 200ms ease;
-  cursor: pointer;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+  transition: background-color 200ms ease;
 }
 
-.restaurants__edit-icon:hover {
+.restaurants__edit-btn:hover .restaurants__edit-icon-graphic {
   background-color: var(--fill-inverted);
 }
 
-.restaurants__row:hover .restaurants__edit-icon {
+.restaurants__row:hover .restaurants__edit-btn {
   opacity: 1;
 }
 
-.restaurants__row--global:hover .restaurants__edit-icon {
+/* Ширина как у двух кнопок 16+12+16 — выравнивание с хедером и строкой «Общие настройки» */
+.restaurants__row-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 44px;
+  min-width: 44px;
+}
+
+.restaurants__delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.restaurants__delete-icon-graphic {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  background-color: var(--danger);
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
+  transition: opacity 200ms ease;
+}
+
+.restaurants__delete-btn:hover .restaurants__delete-icon-graphic {
+  opacity: 0.88;
+}
+
+.restaurants__row:hover .restaurants__delete-btn {
+  opacity: 1;
 }
 
 /* Restaurant list */

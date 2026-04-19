@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import burgerMenuIcon from '../../assets/burger-menu.svg'
 import crossIcon from '../../assets/Cross.svg'
 import settingsIcon from '../../assets/Settings.svg'
@@ -7,14 +7,17 @@ import { Tooltip } from './Tooltip'
 
 type AppHeaderProps = {
   tabItems: string[]
+  /** Индекс активной вкладки; `-1` — ни один пункт не подсвечен (например, открыты настройки) */
   activeTab: number
   isMenuOpen: boolean
   onMenuToggle: () => void
   onTabClick: (index: number) => void
-  isDebug: boolean
-  onDebugClick: () => void
-  theme: 'dark' | 'light'
-  onThemeToggle: () => void
+  isSettingsActive: boolean
+  onSettingsClick: () => void
+  /** Открыть настройки на вкладке «Профиль» */
+  onProfileClick: () => void
+  /** Логин из настроек профиля */
+  profileLogin: string
 }
 
 export function AppHeader({
@@ -23,24 +26,12 @@ export function AppHeader({
   isMenuOpen,
   onMenuToggle,
   onTabClick,
-  isDebug,
-  onDebugClick,
-  theme,
-  onThemeToggle,
+  isSettingsActive,
+  onSettingsClick,
+  onProfileClick,
+  profileLogin,
 }: AppHeaderProps) {
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const profileWrapRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLElement>(null)
-
-  useEffect(() => {
-    if (!profileMenuOpen) return
-    const onPointerDown = (e: PointerEvent) => {
-      if (profileWrapRef.current?.contains(e.target as Node)) return
-      setProfileMenuOpen(false)
-    }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
-  }, [profileMenuOpen])
 
   useEffect(() => {
     if (!isMenuOpen) return
@@ -54,82 +45,72 @@ export function AppHeader({
 
   return (
     <>
-    <header ref={headerRef} className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
-      <div className={`app-header__overlay${isMenuOpen ? ' app-header__overlay--visible' : ''}`} aria-hidden />
-      <button
-        type="button"
-        className="app-header__burger"
-        aria-label={isMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
-        aria-expanded={isMenuOpen}
-        onClick={onMenuToggle}
-      >
-        <img src={isMenuOpen ? crossIcon : burgerMenuIcon} alt="" />
-      </button>
-      <div className="app-header__tabs">
-        {tabItems.map((label, index) => (
-          <button
-            key={label}
-            type="button"
-            className={index === activeTab ? 'tab tab--active' : 'tab'}
-            onClick={() => onTabClick(index)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-      <div className="app-header__right">
+      <header ref={headerRef} className={`app-header${isMenuOpen ? ' app-header--menu-open' : ''}`}>
+        <div className={`app-header__overlay${isMenuOpen ? ' app-header__overlay--visible' : ''}`} aria-hidden />
         <button
           type="button"
-          className={`route-draft__action app-header__user-btn${isDebug ? ' app-header__user-btn--active' : ''}`}
-          onClick={onDebugClick}
+          className="app-header__burger"
+          aria-label={isMenuOpen ? 'Закрыть меню' : 'Открыть меню'}
+          aria-expanded={isMenuOpen}
+          onClick={onMenuToggle}
         >
-          Дебаг
+          <img src={isMenuOpen ? crossIcon : burgerMenuIcon} alt="" />
         </button>
-        <div className="app-header__profile-wrap" ref={profileWrapRef}>
-          <button
-            type="button"
-            className={`route-draft__action app-header__user-btn${profileMenuOpen ? ' app-header__user-btn--active' : ''}`}
-            aria-label="Профиль"
-            aria-expanded={profileMenuOpen}
-            aria-haspopup="menu"
-            onClick={() => setProfileMenuOpen((open) => !open)}
-          >
-            <span className="app-header__icon" style={{ ['--icon-src' as string]: `url(${settingsIcon})` }} aria-hidden />
-            <span className="app-header__user-name">Попова И.</span>
-          </button>
-          {profileMenuOpen ? (
-            <div className="app-header__dropdown" role="menu">
-              <button
-                type="button"
-                className={`app-header__dropdown-item${theme === 'light' ? ' app-header__dropdown-item--active' : ''}`}
-                role="menuitem"
-                aria-pressed={theme === 'light'}
-                onClick={() => {
-                  onThemeToggle()
-                  setProfileMenuOpen(false)
-                }}
-              >
-                Тема
-              </button>
-            </div>
-          ) : null}
+        <div className="app-header__tabs">
+          {tabItems.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              className={index === activeTab ? 'tab tab--active' : 'tab'}
+              onClick={() => onTabClick(index)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        <Tooltip title="Выход">
-          <button
-            type="button"
-            className="route-draft__action route-draft__action--icon app-header__exit-btn"
-            aria-label="Выход"
-          >
-            <span
-              className="route-draft__action-icon"
-              style={{ ['--icon-src' as string]: `url(${exitIcon})` }}
-              aria-hidden
-            />
-          </button>
-        </Tooltip>
-      </div>
-    </header>
+        <div className="app-header__right">
+          <div className="app-header__user-actions">
+            <button
+              type="button"
+              className="app-header__user-name app-header__user-name--clickable"
+              onClick={onProfileClick}
+              aria-label="Профиль: открыть настройки"
+            >
+              {profileLogin.trim() || '—'}
+            </button>
+            <div className="app-header__icon-actions">
+              <Tooltip title="Настройки">
+                <button
+                  type="button"
+                  className={`app-header__circle-btn${isSettingsActive ? ' app-header__circle-btn--active' : ''}`}
+                  aria-label="Настройки"
+                  aria-pressed={isSettingsActive}
+                  onClick={onSettingsClick}
+                >
+                  <span
+                    className="app-header__circle-btn-icon"
+                    style={{ ['--icon-src' as string]: `url(${settingsIcon})` }}
+                    aria-hidden
+                  />
+                </button>
+              </Tooltip>
+              <Tooltip title="Выход">
+                <button
+                  type="button"
+                  className="route-draft__action route-draft__action--icon app-header__exit-btn"
+                  aria-label="Выход"
+                >
+                  <span
+                    className="route-draft__action-icon"
+                    style={{ ['--icon-src' as string]: `url(${exitIcon})` }}
+                    aria-hidden
+                  />
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+        </div>
+      </header>
     </>
   )
 }
-

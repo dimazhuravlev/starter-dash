@@ -1,0 +1,117 @@
+/* Подтверждение удаления ресторана — токены проекта, оверлей как у формы */
+
+.restaurant-delete-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.restaurant-delete-modal--active {
+  pointer-events: auto;
+}
+
+.restaurant-delete-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(0deg, var(--fill-3), var(--fill-3)),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.32), rgba(0, 0, 0, 0.32));
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.restaurant-delete-modal--active .restaurant-delete-modal__backdrop {
+  opacity: 1;
+}
+
+.restaurant-delete-modal__wrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 400px;
+  transform: translateY(10px);
+  opacity: 0;
+  transition:
+    opacity 220ms ease,
+    transform 220ms ease;
+}
+
+.restaurant-delete-modal--active .restaurant-delete-modal__wrap {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.restaurant-delete-modal__dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  padding: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke-3);
+  background: var(--surface-0);
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.06);
+}
+
+.restaurant-delete-modal__title {
+  margin: 0;
+  font: var(--type-headline-2);
+  color: var(--text-1);
+}
+
+.restaurant-delete-modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.restaurant-delete-modal__btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 40px;
+  background: var(--danger);
+  color: #ffffff;
+  font: var(--type-text);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: opacity 200ms ease;
+}
+
+.restaurant-delete-modal__btn-danger:hover {
+  opacity: 0.92;
+}
+
+.restaurant-delete-modal__btn-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--stroke-1);
+  border-radius: 40px;
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-3) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  color: var(--text-1);
+  font: var(--type-text);
+  cursor: pointer;
+  transition:
+    background 200ms ease,
+    opacity 200ms ease;
+}
+
+.restaurant-delete-modal__btn-back:hover {
+  background: linear-gradient(180deg, var(--fill-3) 0%, var(--fill-4) 100%);
+}

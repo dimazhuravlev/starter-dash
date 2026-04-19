@@ -187,7 +187,7 @@ export function useDashboardMapData({
           id: c.id,
           lng: coords.lng,
           lat: coords.lat,
-          surname: c.name.split(/\s+/)[0] ?? c.name,
+          surname: c.lastName?.trim() || c.name.split(/\s+/)[0] || c.name,
           type: c.type,
         }
       }),

@@ -29,11 +29,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    to top left,
-    var(--accent) 0%,
-    color-mix(in srgb, var(--accent) 78%, black) 100%
-  );
+  background: var(--route-mode-auto-gradient);
   opacity: 0;
   pointer-events: none;
   transition: opacity 280ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -115,7 +111,7 @@
 }
 
 .route-mode-selector__label--auto.route-mode-selector__label--active {
-  color: var(--accent);
+  color: transparent;
 }
 
 .route-mode-selector__label--inactive {

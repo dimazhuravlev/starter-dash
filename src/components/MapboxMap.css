@@ -110,8 +110,8 @@
   width: 16px;
   height: 16px;
   background-color: var(--fill-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
   opacity: 0.6;
   transition: opacity 350ms ease-in-out;
 }
@@ -166,8 +166,8 @@
   width: 16px;
   height: 16px;
   background-color: var(--fill-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
 }
 
 .mapbox-map-view-selector {
@@ -215,8 +215,8 @@
   width: 16px;
   height: 16px;
   background-color: var(--fill-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
 }
 
 .mapbox-map-placeholder {
@@ -352,8 +352,8 @@
   height: 16px;
   display: block;
   background-color: var(--fill-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
   transition: width 400ms ease, height 400ms ease;
 }
 

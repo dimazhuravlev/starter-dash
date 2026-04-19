@@ -104,14 +104,6 @@
 .mode-mini-toggle-label {
   font: var(--type-text);
   font-style: normal;
-  background: linear-gradient(
-    to top left,
-    var(--accent) 0%,
-    color-mix(in srgb, var(--accent) 78%, black) 100%
-  );
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
   opacity: 0;
   transform: translateX(4px);
   pointer-events: none;
@@ -126,9 +118,11 @@
 
 .mode-mini-toggle-label--manual {
   background: none;
+  background-image: none;
   -webkit-background-clip: unset;
   background-clip: unset;
   color: var(--text-2);
+  -webkit-text-fill-color: currentColor;
 }
 
 /* Микро-тогл переключения режима */
@@ -217,7 +211,7 @@
   border-radius: 3px;
   border: none;
   padding: 2px;
-  background: linear-gradient(290deg, #B21AFF 15%, #7E00E5 80%);
+  background: var(--route-mode-auto-gradient);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -259,6 +253,6 @@
   height: 16px;
   flex-shrink: 0;
   background-color: var(--text-1);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
 }

@@ -1,7 +1,12 @@
+import { useState } from 'react'
+import plusIcon from '../assets/Plus.svg'
+import minusIcon from '../assets/Minus.svg'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
 import { PrimaryButton } from '../shared/ui/PrimaryButton'
 
-type DebugPanelScreenProps = {
+export type DebugPanelScreenProps = {
+  /** Внутри настроек — без дублирующего крупного заголовка страницы */
+  embedded?: boolean
   now: number
   isRunning: boolean
   speed: 1 | 3 | 5 | 20
@@ -19,7 +24,11 @@ type DebugPanelScreenProps = {
   setRouteStageMin: (stage: keyof RouteStageMin, value: number) => void
 }
 
+const SPEEDS = [1, 3, 5, 20] as const
+const STEP_MINUTES_OPTIONS = [1, 10] as const
+
 export function DebugPanelScreen({
+  embedded = false,
   now,
   isRunning,
   speed,
@@ -36,160 +45,191 @@ export function DebugPanelScreen({
   setOrderSlaOption,
   setRouteStageMin,
 }: DebugPanelScreenProps) {
-  const setOrderStageValue = (stage: keyof OrderStageMin, value: string) => {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) return
-    setOrderStageMin(stage, Math.max(parsed, 0))
+  const [stepMinutesIdx, setStepMinutesIdx] = useState(0)
+  const stepMinutes = STEP_MINUTES_OPTIONS[stepMinutesIdx]
+
+  const rawSpeedIdx = SPEEDS.indexOf(speed)
+  const speedIdx = rawSpeedIdx >= 0 ? rawSpeedIdx : 0
+  const decSpeed = () => {
+    const i = speedIdx <= 0 ? SPEEDS.length - 1 : speedIdx - 1
+    setSpeed(SPEEDS[i])
+  }
+  const incSpeed = () => {
+    const i = speedIdx >= SPEEDS.length - 1 ? 0 : speedIdx + 1
+    setSpeed(SPEEDS[i])
   }
 
-  const setRouteStageValue = (stage: keyof RouteStageMin, value: string) => {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) return
-    setRouteStageMin(stage, Math.max(parsed, 0))
-  }
-
-  const setOrderIntervalValue = (value: string) => {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) return
-    setOrderCreateIntervalMin(Math.max(parsed, 0))
-  }
-
-  const setOrderSlaValue = (index: number, value: string) => {
-    const parsed = Number(value)
-    if (!Number.isFinite(parsed)) return
-    setOrderSlaOption(index, Math.max(parsed, 0))
-  }
+  const decStepMinutes = () =>
+    setStepMinutesIdx((i) => (i <= 0 ? STEP_MINUTES_OPTIONS.length - 1 : i - 1))
+  const incStepMinutes = () =>
+    setStepMinutesIdx((i) => (i >= STEP_MINUTES_OPTIONS.length - 1 ? 0 : i + 1))
 
   return (
-    <div className="debug">
-      <header className="debug__header">
-        <div>
-          <h1>Симулятор доставки</h1>
-        </div>
-        <div className="debug__clock">{new Date(now).toLocaleTimeString()}</div>
-      </header>
+    <div className={`settings-screen__debug-panel${embedded ? ' settings-screen__debug-panel--embedded' : ''}`}>
+      {!embedded ? (
+        <h1 className="settings-screen__title">Симулятор доставки</h1>
+      ) : null}
 
-      <section className="debug__controls">
-        <PrimaryButton variant="default" active={isRunning} onClick={toggleRun}>
-          {isRunning ? 'Пауза' : 'Старт'}
-        </PrimaryButton>
-        <div className="debug__btn-group">
-          {[1, 3, 5, 20].map((value) => (
-            <PrimaryButton
-              key={value}
-              variant="ghost"
-              active={value === speed}
-              onClick={() => setSpeed(value as 1 | 3 | 5 | 20)}
-            >
-              x{value}
-            </PrimaryButton>
-          ))}
-        </div>
-        <PrimaryButton variant="ghost" onClick={() => tick(60_000)}>
-          Шаг +1 мин
-        </PrimaryButton>
-        <PrimaryButton variant="ghost" onClick={() => tick(600_000)}>
-          Шаг +10 мин
-        </PrimaryButton>
-        <PrimaryButton variant="ghost" onClick={resetSeed}>
-          Сбросить сид
-        </PrimaryButton>
-      </section>
+      <div className="settings-screen__debug-stack">
+        <section className="settings-screen__card settings-screen__card--debug-toolbar" aria-label="Управление симуляцией">
+          <div className="settings-screen__debug-clock-row">
+            <span className="settings-screen__debug-time">{new Date(now).toLocaleTimeString()}</span>
+          </div>
 
-      <section className="debug__grid">
-        <div className="panel panel--stage">
-          <h2>Длительности этапов</h2>
-          <div className="stage-editor">
-            <div className="stage-editor__group">
-              <label className="stage-editor__row">
-                <span>Интервал новых заказов</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={orderCreateIntervalMin}
-                  onChange={(event) => setOrderIntervalValue(event.target.value)}
-                />
-              </label>
-              <div className="stage-editor__title">SLA заказа</div>
-              {orderSlaOptionsMin.map((value, index) => (
-                <label key={`sla_${index}`} className="stage-editor__row">
-                  <span>Опция {index + 1}</span>
-                  <input
-                    className="stage-editor__input"
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={value}
-                    onChange={(event) => setOrderSlaValue(index, event.target.value)}
-                  />
-                </label>
-              ))}
-              <div className="stage-editor__title">Заказы</div>
-              <label className="stage-editor__row">
-                <span>Ожидают готовки</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={orderStageMin.waiting_cook}
-                  onChange={(event) => setOrderStageValue('waiting_cook', event.target.value)}
-                />
-              </label>
-              <label className="stage-editor__row">
-                <span>Готовятся</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={orderStageMin.cooking}
-                  onChange={(event) => setOrderStageValue('cooking', event.target.value)}
-                />
-              </label>
-              <label className="stage-editor__row">
-                <span>Готовы</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={orderStageMin.ready}
-                  onChange={(event) => setOrderStageValue('ready', event.target.value)}
-                />
-              </label>
+          <div className="settings-screen__stepper-table">
+            <div className="settings-screen__stepper-row">
+              <span className="settings-screen__row-label">Скорость</span>
+              <div className="restaurants__time-picker">
+                <button
+                  type="button"
+                  className="restaurants__time-btn"
+                  onClick={decSpeed}
+                  aria-label="Уменьшить скорость"
+                >
+                  <span className="icon" style={{ ['--icon-src' as string]: `url(${minusIcon})` }} />
+                </button>
+                <span className="restaurants__time-value restaurants__time-value--wide">×{speed}</span>
+                <button
+                  type="button"
+                  className="restaurants__time-btn"
+                  onClick={incSpeed}
+                  aria-label="Увеличить скорость"
+                >
+                  <span className="icon" style={{ ['--icon-src' as string]: `url(${plusIcon})` }} />
+                </button>
+              </div>
             </div>
-            <div className="stage-editor__group">
-              <div className="stage-editor__title">Доставка</div>
-              <label className="stage-editor__row">
-                <span>В пути</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={routeStageMin.enroute}
-                  onChange={(event) => setRouteStageValue('enroute', event.target.value)}
-                />
-              </label>
-              <label className="stage-editor__row">
-                <span>Возврат</span>
-                <input
-                  className="stage-editor__input"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={routeStageMin.returning}
-                  onChange={(event) => setRouteStageValue('returning', event.target.value)}
-                />
-              </label>
+            <div className="settings-screen__stepper-row">
+              <span className="settings-screen__row-label">Шаг симуляции, мин</span>
+              <div className="restaurants__time-picker">
+                <button
+                  type="button"
+                  className="restaurants__time-btn"
+                  onClick={decStepMinutes}
+                  aria-label="Уменьшить шаг"
+                >
+                  <span className="icon" style={{ ['--icon-src' as string]: `url(${minusIcon})` }} />
+                </button>
+                <span className="restaurants__time-value">{stepMinutes}</span>
+                <button
+                  type="button"
+                  className="restaurants__time-btn"
+                  onClick={incStepMinutes}
+                  aria-label="Увеличить шаг"
+                >
+                  <span className="icon" style={{ ['--icon-src' as string]: `url(${plusIcon})` }} />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
+          <div className="settings-screen__debug-primary-actions">
+            <PrimaryButton variant="default" active={isRunning} onClick={toggleRun}>
+              {isRunning ? 'Пауза' : 'Старт'}
+            </PrimaryButton>
+            <PrimaryButton variant="default" onClick={() => tick(stepMinutes * 60_000)}>
+              Шаг
+            </PrimaryButton>
+            <PrimaryButton variant="default" onClick={resetSeed}>
+              Сбросить сид
+            </PrimaryButton>
+          </div>
+        </section>
+
+        <section className="settings-screen__card" aria-labelledby="debug-stage-duration-heading">
+          <h2 id="debug-stage-duration-heading" className="settings-screen__card-title">
+            Длительности этапов
+          </h2>
+
+          <div className="settings-screen__stepper-table">
+            <DebugNumRow
+              label="Интервал новых заказов"
+              value={orderCreateIntervalMin}
+              onChange={(next) => setOrderCreateIntervalMin(Math.max(0, next))}
+            />
+          </div>
+
+          <h3 className="settings-screen__card-title settings-screen__card-title--section">SLA заказа</h3>
+          <div className="settings-screen__stepper-table">
+            {orderSlaOptionsMin.map((value, index) => (
+              <DebugNumRow
+                key={`sla_${index}`}
+                label={`Опция ${index + 1}`}
+                value={value}
+                onChange={(next) => setOrderSlaOption(index, Math.max(0, next))}
+              />
+            ))}
+          </div>
+
+          <h3 className="settings-screen__card-title settings-screen__card-title--section">Заказы</h3>
+          <div className="settings-screen__stepper-table">
+            <DebugNumRow
+              label="Ожидают готовки"
+              value={orderStageMin.waiting_cook}
+              onChange={(next) => setOrderStageMin('waiting_cook', Math.max(0, next))}
+            />
+            <DebugNumRow
+              label="Готовятся"
+              value={orderStageMin.cooking}
+              onChange={(next) => setOrderStageMin('cooking', Math.max(0, next))}
+            />
+            <DebugNumRow
+              label="Готовы"
+              value={orderStageMin.ready}
+              onChange={(next) => setOrderStageMin('ready', Math.max(0, next))}
+            />
+          </div>
+
+          <h3 className="settings-screen__card-title settings-screen__card-title--section">Доставка</h3>
+          <div className="settings-screen__stepper-table">
+            <DebugNumRow
+              label="В пути"
+              value={routeStageMin.enroute}
+              onChange={(next) => setRouteStageMin('enroute', Math.max(0, next))}
+            />
+            <DebugNumRow
+              label="Возврат"
+              value={routeStageMin.returning}
+              onChange={(next) => setRouteStageMin('returning', Math.max(0, next))}
+            />
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function DebugNumRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  return (
+    <div className="settings-screen__stepper-row">
+      <span className="settings-screen__row-label">{label}</span>
+      <div className="restaurants__time-picker">
+        <button
+          type="button"
+          className="restaurants__time-btn"
+          onClick={() => onChange(Math.max(0, value - 1))}
+          aria-label={`Уменьшить: ${label}`}
+        >
+          <span className="icon" style={{ ['--icon-src' as string]: `url(${minusIcon})` }} />
+        </button>
+        <span className="restaurants__time-value restaurants__time-value--wide">{value}</span>
+        <button
+          type="button"
+          className="restaurants__time-btn"
+          onClick={() => onChange(value + 1)}
+          aria-label={`Увеличить: ${label}`}
+        >
+          <span className="icon" style={{ ['--icon-src' as string]: `url(${plusIcon})` }} />
+        </button>
+      </div>
     </div>
   )
 }

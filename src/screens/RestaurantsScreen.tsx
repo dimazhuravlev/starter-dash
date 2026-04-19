@@ -1,46 +1,33 @@
 import { useRef, useState } from 'react'
 import plusIcon from '../assets/Plus.svg'
 import minusIcon from '../assets/Minus.svg'
+import deleteIcon from '../assets/Delete.svg'
 import editIcon from '../assets/Edit.svg'
 import infoIcon from '../assets/Info.svg'
-import crossIcon from '../assets/Cross.svg'
+import type { Restaurant } from '../model/types'
 import { RouteModeSelector } from '../shared/ui/RouteModeSelector'
+import { TextField } from '../shared/ui/TextField'
 import { Tooltip } from '../shared/ui/Tooltip'
+import {
+  handoffColumnTooltipContent,
+  pickupColumnTooltipContent,
+} from './restaurantsColumnTooltips'
+import { RestaurantAddModal } from './RestaurantAddModal'
+import { RestaurantDeleteConfirmModal } from './RestaurantDeleteConfirmModal'
 
-export type Restaurant = {
-  id: string
-  name: string
-  address: string
-  pickupMin: number
-  handoffMin: number
-  routeMode: 'auto' | 'manual'
-}
+export type { Restaurant }
 
 type RestaurantsScreenProps = {
   restaurants: Restaurant[]
   onRestaurantsChange: (restaurants: Restaurant[]) => void
 }
 
-const pickupColumnTooltipContent = (
-  <div className="tooltip-rich">
-    <p className="tooltip-rich__desc">
-      Время, которое требуется курьеру, чтобы получить и упаковать заказы в ресторане
-    </p>
-  </div>
-)
-
-const handoffColumnTooltipContent = (
-  <div className="tooltip-rich">
-    <p className="tooltip-rich__desc">
-      Время, которое требуется курьеру, чтобы связаться с клиентом и найти квартиру
-    </p>
-  </div>
-)
-
 const routeModeColumnTooltipContent = (
   <div className="tooltip-rich">
     <div className="tooltip-rich__section">
-      <div className="tooltip-rich__title">Автомат</div>
+      <div className="tooltip-rich__title tooltip-rich__title--auto-mode">
+        <span className="route-mode-auto-text">Автомат</span>
+      </div>
       <p className="tooltip-rich__desc">
         Система сама формирует маршруты: подбирает курьеров и оптимально объединяет заказы
       </p>
@@ -56,6 +43,9 @@ const routeModeColumnTooltipContent = (
 
 export function RestaurantsScreen({ restaurants, onRestaurantsChange }: RestaurantsScreenProps) {
   const [search, setSearch] = useState('')
+  const [addModalOpen, setAddModalOpen] = useState(false)
+  const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null)
+  const [restaurantToDelete, setRestaurantToDelete] = useState<Restaurant | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Global settings — independent state
@@ -114,34 +104,29 @@ export function RestaurantsScreen({ restaurants, onRestaurantsChange }: Restaura
             <span className="restaurants__title-count">{restaurants.length}</span>
           </div>
           <div className="restaurants__actions">
-            <div className="restaurants__search-wrap">
-              <input
-                ref={searchInputRef}
-                className={`restaurants__search${search.length > 0 ? ' restaurants__search--has-value' : ''}`}
-                type="text"
-                placeholder="Поиск ресторана"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Поиск ресторана"
-              />
-              <button
-                type="button"
-                className={`restaurants__search-clear${search.length > 0 ? ' restaurants__search-clear--visible' : ''}`}
-                aria-label="Очистить поиск"
-                tabIndex={search.length > 0 ? 0 : -1}
-                onClick={() => {
-                  setSearch('')
-                  searchInputRef.current?.focus()
-                }}
-              >
-                <span
-                  className="restaurants__search-clear-icon"
-                  style={{ ['--icon-src' as string]: `url(${crossIcon})` }}
-                  aria-hidden
-                />
-              </button>
-            </div>
-            <button type="button" className="restaurants__add-btn">
+            <TextField
+              ref={searchInputRef}
+              className="restaurants__search-wrap"
+              variant="search"
+              type="text"
+              placeholder="Поиск ресторана"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Поиск ресторана"
+              clearAriaLabel="Очистить поиск"
+              onClear={() => {
+                setSearch('')
+                searchInputRef.current?.focus()
+              }}
+            />
+            <button
+              type="button"
+              className="restaurants__add-btn"
+              onClick={() => {
+                setEditingRestaurant(null)
+                setAddModalOpen(true)
+              }}
+            >
               <span className="icon" style={{ ['--icon-src' as string]: `url(${plusIcon})` }} />
               Добавить ресторан
             </button>
@@ -214,7 +199,7 @@ export function RestaurantsScreen({ restaurants, onRestaurantsChange }: Restaura
                 </span>
               </Tooltip>
             </span>
-            <span className="restaurants__col--edit" />
+            <span className="restaurants__col--actions" aria-hidden />
           </div>
 
           {/* Global settings row */}
@@ -244,7 +229,7 @@ export function RestaurantsScreen({ restaurants, onRestaurantsChange }: Restaura
                 synced={modeSynced}
                 onModeChange={updateAllMode}
               />
-              <span className="restaurants__edit-icon" style={{ ['--icon-src' as string]: `url(${editIcon})` }} />
+              <div className="restaurants__row-actions" aria-hidden />
             </div>
           </div>
 
@@ -270,13 +255,69 @@ export function RestaurantsScreen({ restaurants, onRestaurantsChange }: Restaura
                     mode={r.routeMode}
                     onModeChange={(mode) => toggleMode(r.id, mode)}
                   />
-                  <span className="restaurants__edit-icon" style={{ ['--icon-src' as string]: `url(${editIcon})` }} />
+                  <div className="restaurants__row-actions">
+                    <button
+                      type="button"
+                      className="restaurants__edit-btn"
+                      aria-label={`Редактировать ${r.name}`}
+                      onClick={() => {
+                        setEditingRestaurant(r)
+                        setAddModalOpen(true)
+                      }}
+                    >
+                      <span
+                        className="restaurants__edit-icon-graphic"
+                        style={{ ['--icon-src' as string]: `url(${editIcon})` }}
+                        aria-hidden
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      className="restaurants__delete-btn"
+                      aria-label={`Удалить ${r.name}`}
+                      onClick={() => setRestaurantToDelete(r)}
+                    >
+                      <span
+                        className="restaurants__delete-icon-graphic"
+                        style={{ ['--icon-src' as string]: `url(${deleteIcon})` }}
+                        aria-hidden
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      <RestaurantAddModal
+        isOpen={addModalOpen}
+        initialRestaurant={editingRestaurant}
+        onClose={() => {
+          setAddModalOpen(false)
+          setEditingRestaurant(null)
+        }}
+        onSubmit={(restaurant) => {
+          if (editingRestaurant) {
+            onRestaurantsChange(restaurants.map((x) => (x.id === restaurant.id ? restaurant : x)))
+          } else {
+            onRestaurantsChange([restaurant, ...restaurants])
+          }
+        }}
+      />
+
+      <RestaurantDeleteConfirmModal
+        isOpen={restaurantToDelete !== null}
+        onClose={() => setRestaurantToDelete(null)}
+        onConfirm={() => {
+          if (!restaurantToDelete) {
+            return
+          }
+          onRestaurantsChange(restaurants.filter((x) => x.id !== restaurantToDelete.id))
+          setRestaurantToDelete(null)
+        }}
+      />
     </div>
   )
 }

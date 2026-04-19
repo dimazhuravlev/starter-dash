@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { type Courier, type Order, type Route } from '../model/types'
 import { routeHasUnreadyKitchenOrders } from '../model/routeBuckets'
 import { type OrderStageMin, type RouteStageMin } from '../model/rules'
-import { step, type DashboardState } from './simulation'
+import { step, type AutoEditSessionBaseline, type DashboardState } from './simulation'
 import { buildSeedState } from './seedState'
 import { computeAutoAssign } from './autoAssign'
 
@@ -160,6 +160,18 @@ function disassembleAllDraftRoutes(
   return { routes: nextRoutes, orders: nextOrders, couriers: nextCouriers }
 }
 
+function snapshotAutoEditBaseline(state: DashboardState): AutoEditSessionBaseline {
+  return {
+    now: state.now,
+    lastOrderCreatedAt: state.lastOrderCreatedAt,
+    nextOrderId: state.nextOrderId,
+    nextRouteId: state.nextRouteId,
+    routes: structuredClone(state.routes),
+    orders: structuredClone(state.orders),
+    couriers: structuredClone(state.couriers),
+  }
+}
+
 type DashboardActions = {
   tick: (deltaMs: number) => void
   toggleRun: () => void
@@ -203,6 +215,8 @@ type DashboardActions = {
   setOrderSlaOption: (index: number, value: number) => void
   setRouteStageMin: (stage: keyof RouteStageMin, value: number) => void
   setOrderCreateIntervalMin: (value: number) => void
+  upsertCourier: (courier: Courier) => void
+  removeCourier: (courierId: string) => void
 }
 
 export const useDashboardStore = create<DashboardState & DashboardActions>()(
@@ -388,7 +402,15 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
               state.orders,
               state.couriers,
             )
-            return { ...state, routeMode: mode, isEditingAutoRoutes: false, routes, orders, couriers }
+            return {
+              ...state,
+              routeMode: mode,
+              isEditingAutoRoutes: false,
+              autoEditSessionBaseline: null,
+              routes,
+              orders,
+              couriers,
+            }
           }
           if (mode === 'manual') {
             let routes: Record<string, Route> = { ...state.routes }
@@ -431,10 +453,31 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
         })
       },
       startEditingAutoRoutes: () => {
-        set((state) => ({ ...state, isEditingAutoRoutes: true }))
+        set((state) => ({
+          ...state,
+          isEditingAutoRoutes: true,
+          autoEditSessionBaseline: snapshotAutoEditBaseline(state),
+        }))
       },
       cancelEditingAutoRoutes: () => {
-        set((state) => ({ ...state, isEditingAutoRoutes: false }))
+        set((state) => {
+          const b = state.autoEditSessionBaseline
+          if (!b) {
+            return { ...state, isEditingAutoRoutes: false }
+          }
+          return {
+            ...state,
+            isEditingAutoRoutes: false,
+            autoEditSessionBaseline: null,
+            now: b.now,
+            lastOrderCreatedAt: b.lastOrderCreatedAt,
+            nextOrderId: b.nextOrderId,
+            nextRouteId: b.nextRouteId,
+            routes: structuredClone(b.routes),
+            orders: structuredClone(b.orders),
+            couriers: structuredClone(b.couriers),
+          }
+        })
       },
       createRouteDraft: () => {
         if (get().routeMode === 'auto') {
@@ -897,6 +940,7 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
             orders: nextOrders,
             couriers: nextCouriers,
             isEditingAutoRoutes: false,
+            autoEditSessionBaseline: null,
           }
         })
       },
@@ -939,6 +983,65 @@ export const useDashboardStore = create<DashboardState & DashboardActions>()(
           ...state,
           orderCreateIntervalMin: value,
         }))
+      },
+      upsertCourier: (courier) => {
+        set((state) => ({
+          ...state,
+          couriers: { ...state.couriers, [courier.id]: courier },
+        }))
+      },
+      removeCourier: (courierId) => {
+        set((state) => {
+          if (!state.couriers[courierId]) {
+            return state
+          }
+          let nextOrders: Record<string, Order> = { ...state.orders }
+          let nextRoutes: Record<string, Route> = { ...state.routes }
+          let nextCouriers: Record<string, Courier> = { ...state.couriers }
+
+          for (const routeId of Object.keys(nextRoutes)) {
+            const route = nextRoutes[routeId]
+            if (!route || route.courierId !== courierId) {
+              continue
+            }
+            if (route.status === 'draft') {
+              const released = releaseOrdersAndCourierFromDraftRoute(
+                state.now,
+                route,
+                nextOrders,
+                nextCouriers,
+              )
+              nextOrders = released.orders
+              nextCouriers = released.couriers
+              nextRoutes = {
+                ...nextRoutes,
+                [routeId]: { ...route, courierId: '' },
+              }
+            } else {
+              nextRoutes = {
+                ...nextRoutes,
+                [routeId]: { ...route, courierId: '' },
+              }
+            }
+          }
+
+          for (const oid of Object.keys(nextOrders)) {
+            const o = nextOrders[oid]
+            if (o?.courierId === courierId) {
+              nextOrders[oid] = { ...o, courierId: undefined }
+            }
+          }
+
+          const { [courierId]: _removed, ...restCouriers } = nextCouriers
+          void _removed
+
+          return finalizeManualDraftRoutes({
+            ...state,
+            orders: nextOrders,
+            routes: nextRoutes,
+            couriers: restCouriers,
+          })
+        })
       },
     }),
     {

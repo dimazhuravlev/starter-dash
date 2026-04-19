@@ -77,48 +77,6 @@
   min-width: 0;
 }
 
-.app-header__profile-wrap {
-  position: relative;
-}
-
-.app-header__dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 160px;
-  padding: 6px;
-  background: var(--surface-1);
-  border: 1px solid var(--stroke-2);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-  z-index: 20;
-}
-
-.app-header__dropdown-item {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: flex-start;
-  margin: 0;
-  padding: 10px 12px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-1);
-  font: var(--type-subtitle);
-  text-align: left;
-  cursor: pointer;
-  transition: background 150ms ease;
-}
-
-.app-header__dropdown-item:hover {
-  background: var(--fill-3);
-}
-
-.app-header__dropdown-item--active {
-  background: var(--fill-2);
-}
-
 .app-header__mode-selector {
   display: flex;
   align-items: center;
@@ -181,18 +139,106 @@
   opacity: 1;
 }
 
-.app-header__icon {
+.app-header__user-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.app-header__user-name {
+  font: var(--type-subtitle);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.app-header__user-name--clickable {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-2);
+  text-align: inherit;
+  border-radius: 6px;
+}
+
+.app-header__user-name--clickable:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.app-header__icon-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Круглая кнопка «Настройки»: вторичная; активная — заливка invert, иконка тёмная */
+.app-header__circle-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--stroke-1);
+  border-radius: 32px;
+  background: linear-gradient(180deg, var(--fill-2) 0%, var(--fill-4) 100%);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+  cursor: pointer;
+  overflow: hidden;
+  flex-shrink: 0;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.app-header__circle-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--fill-2);
+  opacity: 0;
+  transition: opacity 150ms ease;
+  pointer-events: none;
+}
+
+.app-header__circle-btn:hover::before {
+  opacity: 1;
+}
+
+.app-header__circle-btn--active {
+  border-color: var(--stroke-1);
+  background: var(--fill-inverted);
+  box-shadow: 0 1px 8px 0 rgba(0, 0, 0, 0.03);
+}
+
+.app-header__circle-btn--active::before {
+  opacity: 0;
+}
+
+.app-header__circle-btn--active:hover::before {
+  opacity: 0;
+}
+
+.app-header__circle-btn-icon {
+  position: relative;
+  z-index: 1;
   width: 16px;
   height: 16px;
   display: block;
   background-color: var(--fill-inverted);
-  mask: var(--icon-src) center/contain no-repeat;
-  -webkit-mask: var(--icon-src) center/contain no-repeat;
+  mask: var(--icon-src) center / contain no-repeat;
+  -webkit-mask: var(--icon-src) center / contain no-repeat;
 }
 
-.app-header__user-name {
-  white-space: nowrap;
+.app-header__circle-btn--active .app-header__circle-btn-icon {
+  background-color: var(--text-inverted);
 }
 
 @media (max-width: 768px) {

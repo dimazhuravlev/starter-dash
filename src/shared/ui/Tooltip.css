@@ -64,6 +64,15 @@
   opacity: 1;
 }
 
+.tooltip--portal.tooltip--rich.tooltip--w280 {
+  width: 280px;
+}
+
+.tooltip--portal.tooltip--rich.tooltip--w280 .tooltip-rich__desc {
+  color: var(--text-inverted);
+  opacity: 1;
+}
+
 .tooltip-rich {
   display: flex;
   flex-direction: column;
@@ -85,6 +94,12 @@
   font-style: normal;
   color: var(--text-inverted);
   white-space: nowrap;
+}
+
+/* Заголовок «Автомат» — градиент и волна по контурам букв (.route-mode-auto-text в index.css) */
+.tooltip-rich__title--auto-mode {
+  background: none;
+  color: inherit;
 }
 
 .tooltip-rich__desc {

@@ -69,7 +69,11 @@ export function ModeSelectorSection({
                 className={`mode-mini-toggle-label mode-mini-toggle-label--visible${routeMode === 'manual' ? ' mode-mini-toggle-label--manual' : ''}`}
                 aria-hidden
               >
-                {routeMode === 'auto' ? 'Автомат' : 'Ручной'}
+                {routeMode === 'auto' ? (
+                  <span className="route-mode-auto-text">Автомат</span>
+                ) : (
+                  'Ручной'
+                )}
               </span>
               <button
                 type="button"

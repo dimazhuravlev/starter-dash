@@ -1,6 +1,6 @@
 import { type Courier, type Order, type Route } from '../model/types'
 import { MINUTE_MS, type OrderStageMin, type RouteStageMin } from '../model/rules'
-import { RESTAURANT_COORDS } from '../model/types'
+import { maxOrdersForCourierType, readDeliveryMaxOrdersFromStorage } from '../utils/deliveryMaxOrders'
 
 /** Допустимая разница времени готовности заказов (мин) — один заказ не будет долго ждать другой */
 const PREP_TIME_TOLERANCE_MIN = 5
@@ -58,6 +58,7 @@ function buildRouteOrderIds(
   candidates: Order[],
   now: number,
   orderStageMin: OrderStageMin,
+  maxOrdersInRoute: number,
 ): string[] {
   const result = [primary.id]
   const used = new Set([primary.id])
@@ -65,8 +66,9 @@ function buildRouteOrderIds(
 
   const primaryReadyAt = getOrderReadyAt(primary, now, orderStageMin)
   const toleranceMs = PREP_TIME_TOLERANCE_MIN * MINUTE_MS
+  const cap = Math.max(1, maxOrdersInRoute)
 
-  while (result.length < 3 && candidates.length > 0) {
+  while (result.length < cap && candidates.length > 0) {
     const valid = candidates.filter(
       (c) =>
         !used.has(c.id) &&
@@ -143,9 +145,11 @@ export function computeAutoAssign(
   })
 
   const courier = availableCouriers[0]
+  const deliveryLimits = readDeliveryMaxOrdersFromStorage()
+  const maxInRoute = maxOrdersForCourierType(courier.type, deliveryLimits)
   const primary = availableOrders[0]
   const rest = availableOrders.slice(1)
-  const orderIds = buildRouteOrderIds(primary, rest, now, orderStageMin)
+  const orderIds = buildRouteOrderIds(primary, rest, now, orderStageMin, maxInRoute)
 
   return { courierId: courier.id, orderIds }
 }
