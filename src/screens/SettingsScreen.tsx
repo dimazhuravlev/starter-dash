@@ -197,7 +197,12 @@ export function SettingsScreen({
               <h2 id="settings-documents-heading" className="settings-screen__documents-title">
                 Документы
               </h2>
-              <a className="settings-screen__documents-link" href="#privacy">
+              <a
+                className="settings-screen__documents-link"
+                href="https://starterapp.ru/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <span className="settings-screen__documents-link-text">Политика конфиденциальности</span>
                 <ExternalLinkIcon className="settings-screen__documents-link-icon" />
               </a>
